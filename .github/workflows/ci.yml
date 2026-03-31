@@ -44,4 +44,4 @@ jobs:
             git pull origin main
             
             # Rebuild and restart the Docker containers in the background
-            docker compose up -d --build
+            docker-compose up -d --build
