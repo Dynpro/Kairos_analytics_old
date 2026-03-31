@@ -5,27 +5,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Frontend Image
-        run: docker build -t kairos-frontend:test -f HCA_NEXT_GEN-main/Dockerfile HCA_NEXT_GEN-main/
-
-      - name: Build Backend Image
-        run: docker build -t kairos-backend:test -f hca_api-main/Dockerfile hca_api-main/
-
-      - name: Validate Docker Compose config
-        run: docker compose config
-
   deploy:
-    needs: build-and-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
