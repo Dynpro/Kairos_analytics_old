@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  KAIROS_Backend:
+    image: kairos-backend
+    build: 
+      context: ./hca_api-main
+      dockerfile: Dockerfile
+    container_name: KAIROS_Backend
+    ports:
+      # Maps your machine's localhost:8000 to the container's port 80
+      - "8000:80"
+    volumes:
+      # Binds your local source code to allow hot-reloading/saving to reflect live
+      - ./hca_api-main:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_HOST=KAIROS_DB
+      - DB_PORT=3306
+      - DB_DATABASE=kairos
+      - DB_USERNAME=kairos_user
+      - DB_PASSWORD=Kairos@123
+    depends_on:
+      - KAIROS_DB
+
+  KAIROS_Frontend:
+    image: kairos-frontend
+    build: 
+      context: ./HCA_NEXT_GEN-main
+      dockerfile: Dockerfile
+    container_name: KAIROS_Frontend
+    ports:
+      # Maps your machine's localhost:3000 to the container's port 80
+      - "3000:80"
+    depends_on:
+      - KAIROS_Backend
+
+  KAIROS_DB:
+    image: mysql:8.0
+    container_name: KAIROS_DB
+    restart: always
+    environment:
+      MYSQL_DATABASE: kairos
+      MYSQL_USER: kairos_user
+      MYSQL_PASSWORD: Kairos@123
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:
