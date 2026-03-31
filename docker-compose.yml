@@ -13,14 +13,8 @@ services:
     volumes:
       # Binds your local source code to allow hot-reloading/saving to reflect live
       - ./hca_api-main:/var/www/html
-    environment:
-      - APP_ENV=local
-      - APP_DEBUG=true
-      - DB_HOST=KAIROS_DB
-      - DB_PORT=3306
-      - DB_DATABASE=kairos
-      - DB_USERNAME=kairos_user
-      - DB_PASSWORD=Kairos@123
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - KAIROS_DB
 

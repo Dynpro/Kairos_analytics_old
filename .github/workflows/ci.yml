@@ -37,10 +37,6 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Navigate to the OLD project directory if needed, to stop old processes
-            pm2 delete predictum-frontend predictum-backend || true
-            pm2 save --force || true
-            
             # Navigate to the project directory on your EC2 instance (change 'ubuntu' to your user if needed)
             cd /home/ubuntu/Kairos-Analytics_old
             
