@@ -36,8 +36,19 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          timeout: 30m
+          timeout: 60m
+          command_timeout: 45m
           script: |
+            # Check if swap is already enabled (common fix for small t3.micro instances)
+            if [ $(free -m | grep Swap | awk '{print $2}') -eq 0 ]; then
+               echo "Setting up 4GB swap memory to prevent build freeze..."
+               sudo fallocate -l 4G /swapfile
+               sudo chmod 600 /swapfile
+               sudo mkswap /swapfile
+               sudo swapon /swapfile
+               echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+            fi
+
             # Check if home directory exists
             mkdir -p /home/ubuntu
             
