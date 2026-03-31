@@ -22,7 +22,7 @@ jobs:
         run: docker build -t kairos-backend:test -f hca_api-main/Dockerfile hca_api-main/
 
       - name: Validate Docker Compose config
-        run: docker-compose config
+        run: docker compose config
 
   deploy:
     needs: build-and-test
@@ -44,4 +44,4 @@ jobs:
             git pull origin main
             
             # Rebuild and restart the Docker containers in the background
-            docker-compose up -d --build
+            docker compose up -d --build
