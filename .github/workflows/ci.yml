@@ -18,11 +18,21 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           timeout: 30m
           script: |
-            # Navigate to the project directory on your EC2 instance (change 'ubuntu' to your user if needed)
+            # Create the home directory if for some reason it doesn't exist
+            mkdir -p /home/ubuntu
+            
+            # Check if the project folder already exists. If not, clone it!
+            if [ ! -d "/home/ubuntu/Kairos-Analytics_old" ]; then
+              echo "Project directory not found. Cloning repository..."
+              cd /home/ubuntu
+              git clone https://github.com/Dynpro/Kairos-Analytics_old.git
+            fi
+            
+            # Navigate to the project directory
             cd /home/ubuntu/Kairos-Analytics_old
             
-            # Pull the newest authenticated code from the main branch
+            # Pull the newest code
             git pull origin main
             
-            # Rebuild and restart the Docker containers in the background
+            # Rebuild and restart the Docker containers
             docker-compose up -d --build
