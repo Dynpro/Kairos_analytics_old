@@ -1,0 +1,84 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./hca_api-main
+          push: true
+          tags: ghcr.io/dynpro/kairos-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./HCA_NEXT_GEN-main
+          push: true
+          tags: ghcr.io/dynpro/kairos-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy to AWS EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          timeout: 40m
+          script: |
+            # 1. Start from Fresh! Clean up everything.
+            echo "Starting fresh: Purging old containers and images..."
+            docker-compose down --remove-orphans || true
+            docker system prune -af
+
+            # 2. Login to GHCR so we can pull the images
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # 3. Handle Initial Setup (if needed)
+            mkdir -p /home/ubuntu
+            if [ ! -d "/home/ubuntu/Kairos-Analytics_old" ]; then
+              echo "Re-cloning project..."
+              cd /home/ubuntu
+              git clone https://github.com/Dynpro/Kairos-Analytics_old.git
+            fi
+            
+            # 4. Pull newest config and images
+            cd /home/ubuntu/Kairos-Analytics_old
+            git fetch --all
+            git reset --hard origin/main
+            
+            # 5. Bring UP the containers using the PRE-BUILT images
+            echo "Pulling pre-built images and starting..."
+            docker-compose pull
+            docker-compose up -d
