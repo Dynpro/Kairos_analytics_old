@@ -30,13 +30,3 @@ coverage/
 
 # Misc
 *.pem
-*.zip
-*.sql
-**/vendor/
-**/node_modules/
-**/storage/
-**/bootstrap/cache/
-composer.lock
-package-lock.json
-.env
-.env.*
