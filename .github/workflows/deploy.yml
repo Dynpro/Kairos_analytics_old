@@ -1,0 +1,84 @@
+name:  Kairos CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+
+            echo "Starting Deployment"
+
+            FRONTEND=/home/ubuntu/kairos-frontend
+            BACKEND=/home/ubuntu/kairos-backend
+            BACKUP=/home/ubuntu/backups
+            TEMP=/home/ubuntu/temp-deploy
+
+            TIMESTAMP=$(date +%F-%H-%M)
+
+            mkdir -p $BACKUP
+
+            #  BACKUP
+            cp -r $FRONTEND $BACKUP/frontend_$TIMESTAMP
+            cp -r $BACKEND $BACKUP/backend_$TIMESTAMP
+
+            #  CLONE NEW CODE
+            rm -rf $TEMP
+            git clone https://github.com/Dynpro/Kairos_analytics_old.git $TEMP
+
+            #  SPLIT FRONTEND & BACKEND
+            rm -rf $FRONTEND
+            rm -rf $BACKEND
+
+            mv $TEMP/HCA_NEXT_GEN-main $FRONTEND
+            mv $TEMP/hca_api-main $BACKEND
+
+            rm -rf $TEMP
+
+            #  INSTALL FRONTEND
+            cd $FRONTEND
+            npm install
+
+            #  INSTALL BACKEND
+            cd $BACKEND
+            composer install --no-dev --optimize-autoloader
+
+            #  RESTART SERVICES
+            sudo systemctl restart kairos-frontend
+            sudo systemctl restart kairos-backend
+
+            sleep 5
+
+            #  HEALTH CHECK
+            if systemctl is-active --quiet kairos-frontend && systemctl is-active --quiet kairos-backend
+            then
+              echo "Deployment successful"
+            else
+              echo "Deployment failed → Rolling back"
+
+              LAST_FRONTEND=$(ls -td $BACKUP/frontend_* | head -1)
+              LAST_BACKEND=$(ls -td $BACKUP/backend_* | head -1)
+
+              rm -rf $FRONTEND
+              rm -rf $BACKEND
+
+              cp -r $LAST_FRONTEND $FRONTEND
+              cp -r $LAST_BACKEND $BACKEND
+
+              sudo systemctl restart kairos-frontend
+              sudo systemctl restart kairos-backend
+
+              echo "Rollback completed"
+              exit 1
+            fi
