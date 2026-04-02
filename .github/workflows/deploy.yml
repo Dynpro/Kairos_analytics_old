@@ -1,4 +1,4 @@
-name:  Kairos CI/CD
+name: 🚀 Kairos CI/CD
 
 on:
   push:
@@ -18,10 +18,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
 
-            echo "Starting Deployment"
+            echo "🚀 Starting Deployment"
 
-            FRONTEND=/home/ubuntu/kairos-frontend
-            BACKEND=/home/ubuntu/kairos-backend
+            FRONTEND=/home/ubuntu/kairos/Kairos_analytics_old/HCA_NEXT_GEN-main
+            BACKEND=/home/ubuntu/kairos/Kairos_analytics_old/hca_api-main
             BACKUP=/home/ubuntu/backups
             TEMP=/home/ubuntu/temp-deploy
 
@@ -29,15 +29,15 @@ jobs:
 
             mkdir -p $BACKUP
 
-            #  BACKUP
-            cp -r $FRONTEND $BACKUP/frontend_$TIMESTAMP
-            cp -r $BACKEND $BACKUP/backend_$TIMESTAMP
+            # 📦 BACKUP (only if exists)
+            [ -d "$FRONTEND" ] && cp -r $FRONTEND $BACKUP/frontend_$TIMESTAMP
+            [ -d "$BACKEND" ] && cp -r $BACKEND $BACKUP/backend_$TIMESTAMP
 
-            #  CLONE NEW CODE
+            # ⬇️ CLONE NEW CODE
             rm -rf $TEMP
             git clone https://github.com/Dynpro/Kairos_analytics_old.git $TEMP
 
-            #  SPLIT FRONTEND & BACKEND
+            # 🔄 REPLACE EXISTING CODE
             rm -rf $FRONTEND
             rm -rf $BACKEND
 
@@ -46,39 +46,41 @@ jobs:
 
             rm -rf $TEMP
 
-            #  INSTALL FRONTEND
+            # 📦 INSTALL FRONTEND
             cd $FRONTEND
             npm install
 
-            #  INSTALL BACKEND
+            # 📦 INSTALL BACKEND
             cd $BACKEND
             composer install --no-dev --optimize-autoloader
 
-            #  RESTART SERVICES
-            sudo systemctl restart kairos-frontend
-            sudo systemctl restart kairos-backend
+            # 🔄 RESTART (ignore if service not created yet)
+            sudo systemctl restart kairos-frontend || true
+            sudo systemctl restart kairos-backend || true
 
             sleep 5
 
-            #  HEALTH CHECK
-            if systemctl is-active --quiet kairos-frontend && systemctl is-active --quiet kairos-backend
+            # ✅ HEALTH CHECK (skip if services not present)
+            if systemctl list-units --full -all | grep -q "kairos-backend"
             then
-              echo "Deployment successful"
+              if systemctl is-active --quiet kairos-backend && systemctl is-active --quiet kairos-frontend
+              then
+                echo "✅ Deployment successful"
+              else
+                echo "❌ Deployment failed → Rolling back"
+
+                LAST_FRONTEND=$(ls -td $BACKUP/frontend_* 2>/dev/null | head -1)
+                LAST_BACKEND=$(ls -td $BACKUP/backend_* 2>/dev/null | head -1)
+
+                [ -d "$LAST_FRONTEND" ] && cp -r $LAST_FRONTEND $FRONTEND
+                [ -d "$LAST_BACKEND" ] && cp -r $LAST_BACKEND $BACKEND
+
+                sudo systemctl restart kairos-frontend || true
+                sudo systemctl restart kairos-backend || true
+
+                echo "🔁 Rollback completed"
+                exit 1
+              fi
             else
-              echo "Deployment failed → Rolling back"
-
-              LAST_FRONTEND=$(ls -td $BACKUP/frontend_* | head -1)
-              LAST_BACKEND=$(ls -td $BACKUP/backend_* | head -1)
-
-              rm -rf $FRONTEND
-              rm -rf $BACKEND
-
-              cp -r $LAST_FRONTEND $FRONTEND
-              cp -r $LAST_BACKEND $BACKEND
-
-              sudo systemctl restart kairos-frontend
-              sudo systemctl restart kairos-backend
-
-              echo "Rollback completed"
-              exit 1
+              echo "⚠️ Services not configured, skipping health check"
             fi
