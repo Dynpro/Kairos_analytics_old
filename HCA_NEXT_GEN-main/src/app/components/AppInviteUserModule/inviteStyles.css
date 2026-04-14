@@ -1,0 +1,40 @@
+.form-inline-inv {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+}
+
+.form-inline-inv label {
+  margin: 5px 10px 5px 0;
+}
+
+.form-inline-inv input {
+  vertical-align: middle;
+  margin: 5px 10px 5px 0;
+  padding: 10px;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  width: 300px;
+}
+
+.button-section-inv {
+  margin: 3%;
+}
+.button-inv {
+  padding: 10px 20px;
+  background-color: dodgerblue;
+  border: 1px solid #ddd;
+  color: white;
+  cursor: pointer;
+}
+
+.button-inv:hover {
+  background-color: royalblue;
+}
+
+.remove-inv {
+  background-color: rgb(192, 53, 53);
+}
+.remove-inv:hover {
+  background-color: rgb(187, 43, 43);
+}

@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mysql:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"URL match update done: $?\")",
+      "Bash(echo \"Title match update done: $?\")",
+      "Bash(echo \"done: $?\")",
+      "Bash(echo \"Update done: $?\")",
+      "Bash(xargs grep:*)",
+      "Bash(curl:*)",
+      "Bash(npm --version)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\DIPL-LAPT-045\\\\Desktop\\\\org-hca\\\\hca_api-main\\\\scripts\")",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"require\\('puppeteer'\\); console.log\\('ok'\\)\")",
+      "Bash(node generate-pdf.js \"https://lookerstudio.google.com/embed/reporting/05b29cca-8f3b-421e-af50-40d97e1d1e38/page/p_abc123\" \"C:/Temp/test_dashboard.pdf\")",
+      "Bash(npx puppeteer:*)",
+      "Bash(node node_modules/puppeteer/install.mjs)",
+      "Bash(where node:*)",
+      "Bash(php artisan:*)",
+      "Bash(php import_new_dashboards.php)",
+      "Bash(grep:*)",
+      "Bash(php -r ':*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(php import_phm_charts.php)",
+      "Bash(node upload_phm_to_s3.js)",
+      "Bash(node -e \"require\\('@puppeteer/puppeteer'\\); console.log\\('ok'\\)\")",
+      "Bash(node -e \"require.resolve\\('puppeteer'\\)\")",
+      "Bash(mysqldump -h 127.0.0.1 -P 3306 -u root -ptest kairos_next_gen)",
+      "Bash(php import.php)"
+    ]
+  }
+}
