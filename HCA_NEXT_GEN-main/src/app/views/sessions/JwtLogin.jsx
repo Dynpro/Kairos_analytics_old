@@ -504,10 +504,46 @@ const JwtLogin = () => {
     fetchBrowserInfo();
   }, []);
 
-  const handleFormSubmit = async (values) => {
-    const primaryApiKey = 'b133c278534f4d998e419494d17c419f'; // ipgeolocation.io API key
-    const fallbackApiKey = '68ceeb1d0f554717be5b50fc18799f58'; // abstractapi API key
+  const logActivityInBackground = async (userId, authToken) => {
+    const primaryApiKey = 'b133c278534f4d998e419494d17c419f';
+    const fallbackApiKey = '68ceeb1d0f554717be5b50fc18799f58';
+    const { browserName } = browserInfo;
 
+    let ip = '';
+    try {
+      const ipResponse = await axios.get('https://api.ipify.org?format=json');
+      ip = ipResponse.data.ip;
+    } catch {}
+
+    let location = { city: 'Unknown City', state: 'Unknown State', country: 'Unknown Country' };
+    try {
+      const locationResponse = await axios.get(
+        `https://api.ipgeolocation.io/ipgeo?apiKey=${primaryApiKey}&ip=${ip}`
+      );
+      const { city, state_prov, country_name } = locationResponse.data;
+      location = { city, state: state_prov, country: country_name };
+    } catch (primaryError) {
+      if (!primaryError.response || primaryError.response.status !== 429) {
+        try {
+          const fallbackResponse = await axios.get(
+            `https://ipgeolocation.abstractapi.com/v1/?api_key=${fallbackApiKey}&ip_address=${ip}`
+          );
+          const { city, region, country } = fallbackResponse.data;
+          location = { city, state: region, country };
+        } catch {}
+      }
+    }
+
+    try {
+      await axios.post(
+        commonConfig.urls.userActivitylogs,
+        { user_id: userId, ip, browser: browserName, ...location },
+        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` } }
+      );
+    } catch {}
+  };
+
+  const handleFormSubmit = async (values) => {
     try {
       setLoading(true);
 
@@ -516,76 +552,13 @@ const JwtLogin = () => {
       if (loginResponse && loginResponse.Response) {
         SnackbarUtils.success('Login successful');
 
-        const { user, accessToken } = loginResponse.Response;
-        const { browserName } = browserInfo;
+        const { user } = loginResponse.Response;
+        const authToken = getAccessToken();
 
-        // Fetch IP address
-        let ip = '';
-        try {
-          const ipResponse = await axios.get('https://api.ipify.org?format=json');
-          ip = ipResponse.data.ip;
-        } catch (ipError) {
-          SnackbarUtils.error('Failed to fetch IP address');
-        }
+        // Fire activity log in background — do not block navigation
+        logActivityInBackground(user.id, authToken);
 
-        // Fetch user location
-        let userLocation = {
-          city: 'Unknown City',
-          state: 'Unknown State',
-          country: 'Unknown Country',
-        };
-        try {
-          const locationResponse = await axios.get(
-            `https://api.ipgeolocation.io/ipgeo?apiKey=${primaryApiKey}&ip=${ip}`
-          );
-          const { city, state_prov, country_name } = locationResponse.data;
-          userLocation = { city, state: state_prov, country: country_name };
-        } catch (primaryError) {
-          if (primaryError.response && primaryError.response.status === 429) {
-          } else {
-            // console.error('Primary API failed:', primaryError);
-            // console.log('Attempting to fetch location from fallback API...');
-
-            try {
-              const fallbackResponse = await axios.get(
-                `https://ipgeolocation.abstractapi.com/v1/?api_key=${fallbackApiKey}&ip_address=${ip}`
-              );
-              const { city, region, country } = fallbackResponse.data;
-              userLocation = { city, state: region, country };
-            } catch (fallbackError) {
-              if (fallbackError.response && fallbackError.response.status === 429) {
-              } else {
-                SnackbarUtils.error('Failed to fetch user location');
-              }
-            }
-          }
-        }
-
-        // Prepare user data for logging
-        const userData = {
-          user_id: user.id,
-          ip,
-          browser: browserName,
-          country: userLocation.country,
-          state: userLocation.state,
-          city: userLocation.city,
-        };
-
-        // Send activity log request
-        try {
-          const authToken = getAccessToken();
-          const activityLogUrl = commonConfig.urls.userActivitylogs;
-
-          const response = await axios.post(activityLogUrl, userData, {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${authToken}`,
-            },
-          });
-          navigate('/');
-        } catch (activityLogError) {
-          SnackbarUtils.error('Failed to log activity');
-        }
+        navigate('/');
       } else {
         setLoading(false);
         SnackbarUtils.error('Login failed');
