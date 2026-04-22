@@ -408,13 +408,12 @@ export const AuthProvider = ({ children }) => {
           axios(commonConfig.urls.getUserAccessClients, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
-          await axios(commonConfig.urls.getUserAccessFolders, {
+          axios(commonConfig.urls.getUserAccessFolders, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
           axios(commonConfig.urls.getUserAccessdashboards, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
-  
           axios(commonConfig.urls.getClientCateWiseUserAccesAllsNew, {
             headers: { Authorization: `Bearer ${accessToken}` },
           }),
