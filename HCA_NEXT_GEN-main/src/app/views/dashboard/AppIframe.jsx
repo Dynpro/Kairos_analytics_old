@@ -2,7 +2,7 @@ import { styled } from '@mui/system';
 import axios from 'axios';
 import { useEffect, useRef, useState } from 'react';
 
-import { Button, CircularProgress, Tooltip, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, Popover, Tooltip, Typography } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import SnackbarUtils from 'SnackbarUtils';
 import { MatxLoading } from 'app/components';
@@ -68,9 +68,6 @@ const ErrorContainer = styled('div')(() => ({
   marginTop: '20px',
 }));
 
-/**
- * Trigger a browser file download from a PDF blob returned by the backend.
- */
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -82,17 +79,15 @@ function triggerBlobDownload(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-/** Strip the "Category | " prefix that some dashboard names include. */
 function findDashName(str) {
   if (str?.includes('|')) return str.slice(str.indexOf('|') + 1).trim();
   return str || '';
 }
 
-/** Make a string safe to use as a filename (no slashes, colons, etc.). */
 function toSafeFilename(name) {
   return name
-    .replace(/[\\/:*?"<>|]/g, '') // remove chars illegal on Windows/Linux
-    .replace(/\s+/g, '_')         // spaces → underscores
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, '_')
     .trim()
     || 'dashboard';
 }
@@ -101,67 +96,21 @@ export default function AppIframe({ dashId = '', clientId = '', iframeUrl = '' }
   const [data, setData] = useState('');
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
   const currentUserPermission = useSelector((state) => state.userType.userIsA);
   const dashboardName = useSelector((state) => state.currentClient.client?.dashboard_name);
+  const preloadedUrls = useSelector((state) => state.userAccess.preloadedUrls);
 
   const [loading, setLoading] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(false);
   const authToken = getAccessToken();
 
-  // Tracks the live embed URL — updated by Looker Studio postMessages when
-  // the user applies filters/date changes inside the iframe, which change
-  // the report's internal URL (with ?params=... appended).  Falls back to
-  // the original `data` URL if Looker Studio never sends an update.
-  const currentEmbedUrl = useRef('');
+  const iframeRef = useRef(null);
 
   const sendObj = (dId) =>
     dId
       ? { client_id: clientId, dashboard_id: dashId, flag: 0, permission: currentUserPermission }
       : { client_id: clientId, dashboard_id: null, flag: 1, permission: currentUserPermission };
-
-  // Whenever the base embed URL changes (new dashboard selected), reset the
-  // live URL tracker so the previous report's filter state is not carried over.
-  useEffect(() => {
-    currentEmbedUrl.current = data;
-  }, [data]);
-
-  // Looker Studio posts messages to the parent frame during its lifecycle and
-  // when the report URL changes (e.g. after filter / date-range interaction).
-  // We listen for any message that carries a Looker Studio URL and store it so
-  // the download uses the current filtered state rather than the original URL.
-  useEffect(() => {
-    const handleMessage = (event) => {
-      try {
-        const msg = event.data;
-        if (!msg || typeof msg !== 'object') return;
-
-        // Looker Studio wraps its messages in a "datastudio" envelope.
-        // Unwrap one level if present so we can inspect the payload uniformly.
-        const payload = msg.type === 'datastudio' && msg.message ? msg.message : msg;
-
-        // Extract a URL from the most common field names used by Looker Studio.
-        const candidate =
-          payload.url ||
-          payload.reportUrl ||
-          payload.embedUrl ||
-          payload.currentUrl ||
-          payload.value;
-
-        if (
-          candidate &&
-          typeof candidate === 'string' &&
-          candidate.includes('lookerstudio.google.com')
-        ) {
-          currentEmbedUrl.current = candidate;
-        }
-      } catch {
-        // Ignore malformed messages from other origins.
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
 
   useEffect(() => {
     if (iframeUrl) {
@@ -172,6 +121,15 @@ export default function AppIframe({ dashId = '', clientId = '', iframeUrl = '' }
     }
 
     if (!clientId || !dashId) return;
+
+    const cacheKey = `${clientId}_${dashId}`;
+    const cachedUrl = preloadedUrls?.[cacheKey];
+    if (cachedUrl) {
+      setError('');
+      setIframeLoading(true);
+      setData(cachedUrl);
+      return;
+    }
 
     const fetchData = async () => {
       try {
@@ -215,13 +173,10 @@ export default function AppIframe({ dashId = '', clientId = '', iframeUrl = '' }
       }
     };
     fetchData();
-  }, [clientId, dashId, iframeUrl, authToken, currentUserPermission]);
+  }, [clientId, dashId, iframeUrl, authToken, currentUserPermission, preloadedUrls]);
 
   const handleDownload = async () => {
-    // Prefer the live URL captured from Looker Studio postMessages (which
-    // includes any ?params=... filter state the user applied), falling back
-    // to the original base URL if no update has been received yet.
-    const urlToDownload = currentEmbedUrl.current || data;
+    const urlToDownload = data;
     if (!urlToDownload) return;
     setDownloading(true);
     try {
@@ -231,14 +186,13 @@ export default function AppIframe({ dashId = '', clientId = '', iframeUrl = '' }
         {
           headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
           responseType: 'blob',
-          timeout: 120000, // 2 min — Looker Studio can take time for complex reports
+          timeout: 120000,
         }
       );
 
       const filename = toSafeFilename(findDashName(dashboardName)) + '.pdf';
       triggerBlobDownload(response.data, filename);
     } catch (err) {
-      // Axios wraps non-2xx blob responses; read the error JSON from the blob
       if (err.response?.data instanceof Blob) {
         const text = await err.response.data.text();
         try {
@@ -276,26 +230,61 @@ export default function AppIframe({ dashId = '', clientId = '', iframeUrl = '' }
   return (
     <DashboardWrapper>
       <ToolbarRow>
-        <Tooltip title="Export this dashboard as PDF via Looker Studio">
-          <span>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={
-                downloading ? (
-                  <CircularProgress size={14} thickness={5} color="inherit" />
-                ) : (
-                  <DownloadIcon />
-                )
-              }
-              onClick={handleDownload}
-              disabled={downloading}
-              sx={{ textTransform: 'none', fontSize: '12px', minWidth: 148 }}
-            >
-              {downloading ? 'Preparing PDF…' : 'Download PDF'}
-            </Button>
-          </span>
-        </Tooltip>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<DownloadIcon />}
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          sx={{ textTransform: 'none', fontSize: '12px', minWidth: 148 }}
+        >
+          Download PDF
+        </Button>
+
+        <Popover
+          open={Boolean(anchorEl)}
+          anchorEl={anchorEl}
+          onClose={() => setAnchorEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          PaperProps={{ sx: { p: 2, maxWidth: 300 } }}
+        >
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            How to download this dashboard
+          </Typography>
+
+          <Box component="ol" sx={{ m: 0, pl: 2 }}>
+            <Box component="li" sx={{ mb: 0.5 }}>
+              <Typography variant="body2">
+                <strong>With filters applied</strong> — right-click anywhere inside the dashboard
+                and select <strong>"Download page as PDF"</strong>.
+              </Typography>
+            </Box>
+            <Box component="li">
+              <Typography variant="body2">
+                <strong>Full dashboard (no filters)</strong> — click the button below to download
+                via server.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Button
+            size="small"
+            variant="contained"
+            fullWidth
+            startIcon={
+              downloading ? (
+                <CircularProgress size={14} thickness={5} color="inherit" />
+              ) : (
+                <DownloadIcon />
+              )
+            }
+            onClick={() => { setAnchorEl(null); handleDownload(); }}
+            disabled={downloading}
+            sx={{ textTransform: 'none', mt: 1.5 }}
+          >
+            {downloading ? 'Preparing PDF…' : 'Download without filters'}
+          </Button>
+        </Popover>
       </ToolbarRow>
 
       <DashboardDiv>
@@ -308,6 +297,7 @@ export default function AppIframe({ dashId = '', clientId = '', iframeUrl = '' }
           </IframeOverlay>
         )}
         <Iframe
+          ref={iframeRef}
           title="Dashboard"
           frameBorder={0}
           src={data}
