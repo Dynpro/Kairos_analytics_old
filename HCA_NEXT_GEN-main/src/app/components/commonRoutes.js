@@ -43,7 +43,7 @@ const commonRoutes = {
   lookerDashboards: {},
   navigations: {},
   landingPage: {
-    defaultLandingPage: 'kairos/analytics',
+    defaultLandingPage: 'predictium/login',
   },
   lookerPage: {
     defaultLookerList: '/lookerList',
