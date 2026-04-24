@@ -38,7 +38,7 @@ const AuthGuard = ({ children }) => {
       {authenticated ? (
         children
       ) : (
-        <Navigate replace to="kairos/analytics" state={{ from: pathname }} />
+        <Navigate replace to="predictium/login" state={{ from: pathname }} />
       )}
     </>
   );
