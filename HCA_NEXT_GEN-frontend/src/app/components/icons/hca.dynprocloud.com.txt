@@ -1,0 +1,109 @@
+
+<!-- saved from url=(0014)about:internet -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body>Html Webpack Plugin:
+<pre>  Error: Child compilation failed:
+  Module build failed (from ./node_modules/html-webpack-plugin/lib/loader.js):
+  Error: ENOENT: no such file or directory, open '/home/ubuntu/kairos/Kairos_ana  lytics_old/HCA_NEXT_GEN-main/public/index.html':
+  Error: ENOENT: no such file or directory, open '/home/ubuntu/kairos/Kairos_ana  lytics_old/HCA_NEXT_GEN-main/public/index.html'
+  ModuleBuildError: Module build failed (from ./node_modules/html-webpack-plugin  /lib/loader.js):
+  Error: ENOENT: no such file or directory, open '/home/ubuntu/kairos/Kairos_ana  lytics_old/HCA_NEXT_GEN-main/public/index.html'
+  
+  - NormalModule.js:316 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/NormalModule.js:316:20
+  
+  - LoaderRunner.js:367 
+    [HCA_NEXT_GEN-main]/[loader-runner]/lib/LoaderRunner.js:367:11
+  
+  - LoaderRunner.js:203 Array.<anonymous>
+    [HCA_NEXT_GEN-main]/[loader-runner]/lib/LoaderRunner.js:203:19
+  
+  - CachedInputFileSystem.js:55 Storage.finished
+    [HCA_NEXT_GEN-main]/[enhanced-resolve]/lib/CachedInputFileSystem.js:55:16
+  
+  - CachedInputFileSystem.js:91 ReadFileContext.<anonymous>
+    [HCA_NEXT_GEN-main]/[enhanced-resolve]/lib/CachedInputFileSystem.js:91:9
+  
+  - graceful-fs.js:123 ReadFileContext.callback
+    [HCA_NEXT_GEN-main]/[graceful-fs]/graceful-fs.js:123:16
+  
+  - node:fs:319 FSReqCallback.readFileAfterOpen [as oncomplete]
+    node:fs:319:13
+  
+  - child-compiler.js:131 
+    [HCA_NEXT_GEN-main]/[html-webpack-plugin]/lib/child-compiler.js:131:18
+  
+  - Compiler.js:343 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compiler.js:343:11
+  
+  - Compiler.js:681 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compiler.js:681:15
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compiler.js:678 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compiler.js:678:31
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compilation.js:1423 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1423:35
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compilation.js:1414 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1414:32
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compilation.js:1409 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1409:36
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compilation.js:1405 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1405:32
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compilation.js:1342 Compilation.seal
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1342:27
+  
+  - Compiler.js:675 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compiler.js:675:18
+  
+  - Compilation.js:1261 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1261:4
+  
+  
+  - Hook.js:154 AsyncSeriesHook.lazyCompileHook
+    [HCA_NEXT_GEN-main]/[tapable]/lib/Hook.js:154:20
+  
+  - Compilation.js:1253 Compilation.finish
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1253:28
+  
+  - Compiler.js:672 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compiler.js:672:17
+  
+  
+  - Compilation.js:1185 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1185:12
+  
+  - Compilation.js:1097 
+    [HCA_NEXT_GEN-main]/[webpack]/lib/Compilation.js:1097:9
+  
+  - task_queues:77 process.processTicksAndRejections
+    node:internal/process/task_queues:77:11
+  
+</anonymous></anonymous></pre><script src="./hca.dynprocloud.com_files/bundle.js.download"></script><script src="./hca.dynprocloud.com_files/vendors~main.chunk.js.download"></script><script src="./hca.dynprocloud.com_files/main.chunk.js.download"></script><iframe style="position: fixed; top: 0px; left: 0px; width: 100%; height: 100%; border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; z-index: 2147483647;" src="./hca.dynprocloud.com_files/saved_resource.html"></iframe></body></html>
