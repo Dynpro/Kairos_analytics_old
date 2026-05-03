@@ -402,6 +402,16 @@ class PDFReportGenerator:
             self._section_24_medication_mpr(story, charts)
             story.append(PageBreak())
             self._section_25_brand_generic(story, charts)
+            story.append(PageBreak())
+
+            # 9. Appendices 1–4
+            self._appendix_1_disease_groups(story)
+            story.append(PageBreak())
+            self._appendix_2_diagnostic_categories(story)
+            story.append(PageBreak())
+            self._appendix_3_diabetes_complications(story)
+            story.append(PageBreak())
+            self._appendix_4_screening_eligibility(story)
 
             doc.multiBuild(story)
             self.logger.info(f"PDF generated: {fp}")
@@ -3181,4 +3191,413 @@ class PDFReportGenerator:
             "on therapeutically equivalent generic options. Use value-based formulary "
             "incentives to drive generic utilization.",
             self.S["Body"]
+        ))
+
+    # ── Appendix 1: Disease Group Definitions ─────────────────────────────────
+
+    def _appendix_1_disease_groups(self, story):
+        hdr = self._section_header_table("Appendix 1: Disease Group Definitions")
+        hdr._toc_entry = "Appendix 1: Disease Group Definitions"
+        story.append(hdr)
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph(
+            "The population is stratified into seven mutually exclusive disease risk groups "
+            "based on the member's chronic disease burden and annual medical expenditures. "
+            "The definitions below are used throughout this report.",
+            self.S["Body"]
+        ))
+        story.append(Spacer(1, 0.15*inch))
+
+        data = [
+            ["Disease Group", "Definition"],
+            ["Group 1",
+             "No chronic disease and less than $1,500 in medical expenditures per 12 months. "
+             "This group represents the healthiest and lowest-cost members of the population."],
+            ["Group 2",
+             "No chronic disease and $1,500 or more in medical expenditures per 12 months. "
+             "Members in this group may have acute conditions or high utilization without a "
+             "chronic diagnosis."],
+            ["Group 3",
+             "One Chronic Disease. Members carry a single chronic condition that requires "
+             "ongoing management."],
+            ["Group 4",
+             "Two Chronic Diseases. Members carry two concurrent chronic conditions, "
+             "increasing care complexity and cost."],
+            ["Group 5",
+             "Three Chronic Diseases. Members carry three concurrent chronic conditions. "
+             "Intensive disease management is recommended."],
+            ["Group 6",
+             "Four Chronic Diseases. Members carry four concurrent chronic conditions and "
+             "represent a high-risk cohort requiring coordinated care."],
+            ["Group 7",
+             "Five or More Chronic Diseases. Members in this group carry the highest chronic "
+             "disease burden and typically account for a disproportionate share of total "
+             "medical expenditures."],
+        ]
+
+        col_w = [1.2*inch, 6.1*inch]
+        t = Table(data, colWidths=col_w, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 8),
+            ("ALIGN",         (0, 0), (0, -1), "CENTER"),
+            ("ALIGN",         (1, 0), (1, -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LTGREY]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph(
+            "Members are re-stratified annually based on claims data for the reporting period. "
+            "A member may move between groups year over year as their health status changes.",
+            self.S["Body"]
+        ))
+
+    # ── Appendix 2: Examples of Diagnostic Categories ─────────────────────────
+
+    def _appendix_2_diagnostic_categories(self, story):
+        hdr = self._section_header_table("Appendix 2: Examples of Diagnostic Categories")
+        hdr._toc_entry = "Appendix 2: Examples of Diagnostic Categories"
+        story.append(hdr)
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph(
+            "The following table provides examples of ICD-10 diagnosis codes and conditions "
+            "that are classified under each Diagnostic Category used in Section 7 of this report. "
+            "Categories are based on the ICD-10-CM chapter and block structure.",
+            self.S["Body"]
+        ))
+        story.append(Spacer(1, 0.15*inch))
+
+        data = [
+            ["Diagnostic Category", "ICD-10 Chapter / Block", "Examples of Conditions Included"],
+            ["Musculoskeletal",
+             "Chapter XIII (M00–M99)",
+             "Osteoarthritis, rheumatoid arthritis, back pain, disc disorders, "
+             "fractures of spine/extremities, tendinitis, rotator cuff syndrome"],
+            ["Neoplasms",
+             "Chapter II (C00–D49)",
+             "Malignant neoplasms of breast, prostate, colon, lung, skin; "
+             "benign tumors; carcinoma in situ"],
+            ["Symptoms, Signs & Abnormal\nClinical Lab Findings",
+             "Chapter XVIII (R00–R99)",
+             "Chest pain NOS, shortness of breath, dizziness, fatigue, "
+             "abnormal blood glucose, abnormal ECG, fever of unknown origin"],
+            ["Factors Influencing Health Status",
+             "Chapter XXI (Z00–Z99)",
+             "Preventive visits, immunizations, health screenings, "
+             "routine examinations, medication management visits"],
+            ["Circulatory System",
+             "Chapter IX (I00–I99)",
+             "Coronary artery disease, heart failure, hypertension, "
+             "atrial fibrillation, stroke, peripheral vascular disease"],
+            ["Digestive System",
+             "Chapter XI (K00–K95)",
+             "GERD, Crohn's disease, ulcerative colitis, cholelithiasis, "
+             "appendicitis, hernia, diverticular disease"],
+            ["Genitourinary System",
+             "Chapter XIV (N00–N99)",
+             "Chronic kidney disease, urinary tract infections, benign "
+             "prostatic hyperplasia, kidney stones, incontinence"],
+            ["Respiratory System",
+             "Chapter X (J00–J99)",
+             "Asthma, COPD, pneumonia, acute bronchitis, "
+             "sinusitis, sleep apnea, influenza"],
+            ["Pregnancy & Childbirth",
+             "Chapter XV (O00–O9A)",
+             "Normal delivery, high-risk pregnancy, gestational diabetes, "
+             "preeclampsia, cesarean delivery"],
+            ["Endocrine / Nutritional /\nMetabolic",
+             "Chapter IV (E00–E89)",
+             "Diabetes mellitus type 1 & 2, obesity, hyperlipidemia, "
+             "hypothyroidism, gout, metabolic syndrome"],
+            ["Mental & Behavioral\nDisorders",
+             "Chapter V (F01–F99)",
+             "Depression, anxiety disorders, bipolar disorder, "
+             "substance use disorders, ADHD, PTSD"],
+            ["Nervous System",
+             "Chapter VI (G00–G99)",
+             "Migraine, epilepsy, Parkinson's disease, multiple sclerosis, "
+             "neuropathy, carpal tunnel syndrome"],
+            ["Injury & Poisoning",
+             "Chapter XIX (S00–T88)",
+             "Fractures, lacerations, contusions, burns, "
+             "drug poisoning, adverse effects of medications"],
+            ["Eye & Adnexa",
+             "Chapter VII (H00–H59)",
+             "Cataract, glaucoma, macular degeneration, "
+             "diabetic retinopathy, conjunctivitis"],
+            ["Infectious & Parasitic\nDiseases",
+             "Chapter I (A00–B99)",
+             "Septicemia, HIV disease, viral hepatitis, "
+             "pneumonia due to organism, Lyme disease"],
+        ]
+
+        col_w = [1.8*inch, 1.7*inch, 3.8*inch]
+        t = Table(data, colWidths=col_w, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7),
+            ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LTGREY]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ]))
+        story.append(t)
+
+    # ── Appendix 3: Examples of Complications of Diabetes ─────────────────────
+
+    def _appendix_3_diabetes_complications(self, story):
+        hdr = self._section_header_table("Appendix 3: Examples of Complications of Diabetes")
+        hdr._toc_entry = "Appendix 3: Examples of Complications of Diabetes"
+        story.append(hdr)
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph(
+            "The following table identifies the diabetes-specific complication categories "
+            "used in Section 9 of this report, along with representative ICD-10 diagnosis "
+            "codes and clinical descriptions.",
+            self.S["Body"]
+        ))
+        story.append(Spacer(1, 0.15*inch))
+
+        data = [
+            ["Complication Category", "ICD-10 Codes (Examples)", "Clinical Description"],
+            ["Cardiovascular",
+             "I20–I25, I50, I63–I64,\nE11.40–E11.49",
+             "Coronary artery disease, heart failure, stroke, and other "
+             "cardiovascular events occurring in the context of diabetes. "
+             "The most common and costly complication category."],
+            ["Peripheral Vascular\nDisease",
+             "E11.51–E11.52, I70–I79,\nE10.51–E10.52",
+             "Peripheral arterial occlusive disease, intermittent claudication, "
+             "and other vascular compromise affecting the limbs. "
+             "Associated with elevated risk of lower-extremity amputation."],
+            ["Neuropathy",
+             "E11.40, E11.41, E11.42,\nG63.2, G90.09",
+             "Diabetic peripheral neuropathy, autonomic neuropathy, and "
+             "painful diabetic neuropathy. Contributes to foot complications "
+             "and reduced quality of life."],
+            ["Nephropathy /\nChronic Kidney Disease",
+             "E11.21, E11.22, N18.1–N18.6,\nN08",
+             "Diabetic kidney disease ranging from microalbuminuria to "
+             "end-stage renal disease (ESRD) requiring dialysis or transplant. "
+             "Significant cost driver."],
+            ["Retinopathy /\nEye Complications",
+             "E11.311–E11.359,\nH28, H36.0",
+             "Diabetic background retinopathy, proliferative retinopathy, "
+             "diabetic macular edema, and other eye complications that "
+             "can lead to vision loss."],
+            ["Foot Complications",
+             "E11.610–E11.649,\nL97.1–L97.9, M86",
+             "Diabetic foot ulcers, Charcot foot, foot infections, and "
+             "osteomyelitis. Often preventable with regular foot exams and "
+             "podiatric care."],
+            ["Hypoglycemia",
+             "E11.641–E11.649,\nE16.0–E16.2",
+             "Low blood sugar events including severe hypoglycemia requiring "
+             "assistance. Associated with medication non-compliance and "
+             "inadequate monitoring."],
+            ["Hyperglycemic Crisis",
+             "E11.00–E11.01,\nE13.10–E13.11",
+             "Diabetic ketoacidosis (DKA) and hyperosmolar hyperglycemic "
+             "state (HHS). Typically represent uncontrolled or newly "
+             "diagnosed diabetes and require acute hospitalization."],
+            ["Infection / Sepsis",
+             "A41, B37, L03, L08,\nE11.618–E11.638",
+             "Diabetes-related increased susceptibility to infections "
+             "including cellulitis, candidiasis, urinary tract infections, "
+             "and sepsis. Diabetes impairs immune response."],
+            ["End-Stage Renal\nDisease / Dialysis",
+             "N18.6, Z99.2, Z49.01,\nZ49.02",
+             "Patients with ESRD requiring chronic hemodialysis or "
+             "peritoneal dialysis. Represents the most severe stage of "
+             "diabetic nephropathy."],
+        ]
+
+        col_w = [1.7*inch, 1.8*inch, 3.8*inch]
+        t = Table(data, colWidths=col_w, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7),
+            ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LTGREY]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 0.15*inch))
+        story.append(Paragraph(
+            "Source: ICD-10-CM Official Guidelines for Coding and Reporting; American Diabetes "
+            "Association Standards of Medical Care in Diabetes; HEDIS Technical Specifications.",
+            ParagraphStyle("small_app3", parent=self.S["Body"], fontSize=7,
+                           fontName="Helvetica-Oblique")
+        ))
+
+    # ── Appendix 4: Preventive Screening Eligibility Criteria ─────────────────
+
+    def _appendix_4_screening_eligibility(self, story):
+        hdr = self._section_header_table("Appendix 4: Preventive Screening Eligibility Criteria")
+        hdr._toc_entry = "Appendix 4: Preventive Screening Eligibility Criteria"
+        story.append(hdr)
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph(
+            "The following table defines the eligibility criteria used to identify members "
+            "who are due for preventive cancer screenings in Section 14 (Preventive Screening "
+            "Compliance) and Section 15 (Value of Preventive Screenings). Criteria are "
+            "aligned with HEDIS technical specifications and USPSTF guidelines.",
+            self.S["Body"]
+        ))
+        story.append(Spacer(1, 0.15*inch))
+
+        # ── Main eligibility table ──────────────────────────────────────────
+        elig_data = [
+            ["Screening Type", "Eligible Population", "Age / Gender\nCriteria",
+             "Screening Interval", "HEDIS Measure"],
+            ["Breast Cancer\nScreening\n(Mammography)",
+             "Female members continuously enrolled for at least 12 months",
+             "Women aged 50–74",
+             "At least one mammogram in the past 27 months",
+             "BCS — Breast Cancer\nScreening"],
+            ["Cervical Cancer\nScreening\n(Pap Smear / HPV)",
+             "Female members continuously enrolled for at least 12 months "
+             "with no history of hysterectomy",
+             "Women aged 21–64",
+             "Pap test within past 3 years (ages 21–64); "
+             "Pap + HPV co-test within past 5 years (ages 30–64)",
+             "CCS — Cervical Cancer\nScreening"],
+            ["Colorectal Cancer\nScreening",
+             "Members continuously enrolled for at least 12 months with "
+             "no history of total colectomy or colorectal cancer",
+             "Adults aged 50–75",
+             "FOBT/FIT annually; Flexible sigmoidoscopy every 5 years; "
+             "Colonoscopy every 10 years; CT colonography every 5 years",
+             "COL — Colorectal Cancer\nScreening"],
+        ]
+
+        col_w = [1.35*inch, 1.65*inch, 1.15*inch, 1.85*inch, 1.3*inch]
+        t_elig = Table(elig_data, colWidths=col_w, repeatRows=1)
+        t_elig.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7),
+            ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LTGREY]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ]))
+        story.append(t_elig)
+        story.append(Spacer(1, 0.2*inch))
+
+        # ── CPT / HCPCS codes used for screening identification ─────────────
+        story.append(Paragraph("Screening Identification Codes (CPT / HCPCS)", self.S["SubHead"]))
+        story.append(Spacer(1, 0.05*inch))
+        story.append(Paragraph(
+            "The following CPT and HCPCS codes are used to identify completed screenings "
+            "in the claims data:",
+            self.S["Body"]
+        ))
+        story.append(Spacer(1, 0.08*inch))
+
+        cpt_data = [
+            ["Screening Type", "CPT / HCPCS Codes"],
+            ["Breast Cancer (Mammography)",
+             "77065, 77066, 77067, G0202, G0204, G0206"],
+            ["Cervical Cancer (Pap Smear)",
+             "88141–88143, 88147, 88148, 88150, 88152–88154, 88164–88167, "
+             "88174, 88175, G0101, G0123, G0124, G0141, G0143–G0145, "
+             "G0147, G0148, P3000, P3001, Q0091"],
+            ["Cervical Cancer (HPV Co-test)",
+             "87620, 87621, 87622, 87623, 87624, 87625"],
+            ["Colorectal — FOBT / FIT",
+             "82270, 82274, G0107, G0328"],
+            ["Colorectal — Flexible Sigmoidoscopy",
+             "45330–45335, 45337–45342, 45345, G0104"],
+            ["Colorectal — Colonoscopy",
+             "44388–44394, 44397, 44401, 44404–44408, "
+             "45355, 45378–45393, 45398, G0105, G0121"],
+            ["Colorectal — CT Colonography",
+             "74261, 74262, 74263"],
+        ]
+
+        col_w2 = [1.9*inch, 5.4*inch]
+        t_cpt = Table(cpt_data, colWidths=col_w2, repeatRows=1)
+        t_cpt.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7),
+            ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LTGREY]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ]))
+        story.append(t_cpt)
+        story.append(Spacer(1, 0.2*inch))
+
+        # ── Exclusion criteria ──────────────────────────────────────────────
+        story.append(Paragraph("Exclusion Criteria", self.S["SubHead"]))
+        story.append(Spacer(1, 0.05*inch))
+
+        excl_data = [
+            ["Screening Type", "Exclusion Criteria"],
+            ["Breast Cancer",
+             "Bilateral mastectomy; history of breast cancer treatment; "
+             "hospice enrollment during the measurement year."],
+            ["Cervical Cancer",
+             "Total hysterectomy with removal of cervix; history of cervical cancer; "
+             "hospice enrollment during the measurement year."],
+            ["Colorectal Cancer",
+             "Total colectomy; colorectal cancer diagnosis; "
+             "hospice enrollment during the measurement year."],
+        ]
+
+        t_excl = Table(excl_data, colWidths=[1.5*inch, 5.8*inch], repeatRows=1)
+        t_excl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
+            ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7),
+            ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, LTGREY]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ]))
+        story.append(t_excl)
+        story.append(Spacer(1, 0.15*inch))
+        story.append(Paragraph(
+            "Sources: NCQA HEDIS 2024 Technical Specifications; U.S. Preventive Services Task "
+            "Force (USPSTF) Recommendations; American Cancer Society Screening Guidelines.",
+            ParagraphStyle("small_app4", parent=self.S["Body"], fontSize=7,
+                           fontName="Helvetica-Oblique")
         ))
