@@ -349,15 +349,13 @@ class PHMDataAnalyzer:
     def analyze_demographics_pyramid(self) -> Optional[ChartData]:
         sql = f"""
             SELECT
-                CASE
-                    WHEN PATIENT_AGE < 10  THEN '0-9'
-                    WHEN PATIENT_AGE < 20  THEN '10-19'
-                    WHEN PATIENT_AGE < 30  THEN '20-29'
-                    WHEN PATIENT_AGE < 40  THEN '30-39'
-                    WHEN PATIENT_AGE < 50  THEN '40-49'
-                    WHEN PATIENT_AGE < 60  THEN '50-59'
-                    WHEN PATIENT_AGE < 70  THEN '60-69'
-                    ELSE '70+'
+                CASE 
+                    WHEN PATIENT_AGE < 20 THEN 'Below 20'
+                    WHEN PATIENT_AGE BETWEEN 20 AND 29 THEN '20 to 29'
+                    WHEN PATIENT_AGE BETWEEN 30 AND 39 THEN '30 to 39'
+                    WHEN PATIENT_AGE BETWEEN 40 AND 49 THEN '40 to 49'
+                    WHEN PATIENT_AGE BETWEEN 50 AND 59 THEN '50 to 59'
+                    ELSE '60 or Above'
                 END AS age_group,
                 {self.config.medical_gender_col} AS gender,
                 COUNT(DISTINCT {self.config.member_col}) AS n

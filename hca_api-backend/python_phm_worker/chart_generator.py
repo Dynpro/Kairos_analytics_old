@@ -272,17 +272,22 @@ class PDFReportGenerator:
             story.append(doc.toc)
             story.append(PageBreak())
 
-            # 3. Executive Summary (risk group table + intro text)
+            # 3. Executive Summary
             self._executive_summary(story, charts.get("risk_groups"))
+            story.append(PageBreak())
 
-            # 4. One page per section
-            for key, info in self.SECTIONS.items():
-                sec_num, sec_title, key_finding, recommendation = info
-                cd = charts.get(key)
-                cf = chart_files.get(key)
-                if cd or cf:
-                    self._section_page(story, sec_num, sec_title,
-                                       key_finding, recommendation, cd, cf)
+            # 4. Sections 2, 3, 4
+            self._section_2_demographics(story, charts)
+            story.append(PageBreak())
+            self._section_3_medical_by_year(story, charts)
+            story.append(PageBreak())
+            self._section_4_medical_by_quarter(story, charts)
+            story.append(PageBreak())
+
+            # 5. Sections 5, 6
+            self._section_5_employee_expenditures(story, charts)
+            story.append(PageBreak())
+            self._section_6_gender_expenditures(story, charts)
 
             doc.multiBuild(story)
             self.logger.info(f"PDF generated: {fp}")
@@ -290,8 +295,6 @@ class PDFReportGenerator:
         except Exception as e:
             self.logger.error(f"PDF generation failed: {e}", exc_info=True)
             return None
-
-    # ── Internal builders ─────────────────────────────────────────────────────
 
     def _cover(self, story, client_name: str, meta: Optional[dict]):
         story.append(Spacer(1, 1.5*inch))
@@ -515,3 +518,469 @@ class PDFReportGenerator:
             ("VALIGN",        (0,0), (-1,-1), "TOP"),
         ]))
         story.append(t)
+    def _fetch_quickchart(self, cfg: dict, filename: str) -> Optional[str]:
+        import json, urllib.parse, urllib.request
+        try:
+            s = json.dumps(cfg, separators=(",",":"))
+            url = f"https://quickchart.io/chart?c={urllib.parse.quote(s, safe='')}&w=700&h=350&f=png"
+            fp = self.output_dir / filename
+            for _ in range(3):
+                try:
+                    resp = urllib.request.urlopen(url, timeout=30)
+                    fp.write_bytes(resp.read())
+                    return str(fp)
+                except:
+                    pass
+        except:
+            pass
+        return None
+
+    def _section_2_demographics(self, story, charts):
+        story.append(self._section_header_table("2. Demographic Information (Age and Gender)"))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Chart 1: Mean Age and N for Total Population
+        story.append(Paragraph("• The mean (average) age for the total population (including Employees, Spouses, and Dependents) was:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_rel = charts.get("demographics_rel_age")
+        if cd_rel and cd_rel.data:
+            years = sorted(list(set(str(r["YR"]) for r in cd_rel.data)))
+            emp_age = [float(next((r["MEAN_AGE"] for r in cd_rel.data if str(r["YR"])==y and r["RELATIONSHIP"]=='EMPLOYEE'), 0)) for y in years]
+            emp_n = [int(next((r["N"] for r in cd_rel.data if str(r["YR"])==y and r["RELATIONSHIP"]=='EMPLOYEE'), 0)) for y in years]
+            dep_age = [float(next((r["MEAN_AGE"] for r in cd_rel.data if str(r["YR"])==y and r["RELATIONSHIP"]=='DEPENDENT'), 0)) for y in years]
+            dep_n = [int(next((r["N"] for r in cd_rel.data if str(r["YR"])==y and r["RELATIONSHIP"]=='DEPENDENT'), 0)) for y in years]
+            spo_age = [float(next((r["MEAN_AGE"] for r in cd_rel.data if str(r["YR"])==y and r["RELATIONSHIP"]=='SPOUSE'), 0)) for y in years]
+            spo_n = [int(next((r["N"] for r in cd_rel.data if str(r["YR"])==y and r["RELATIONSHIP"]=='SPOUSE'), 0)) for y in years]
+            
+            cfg1 = {
+                "type": "bar",
+                "data": {
+                    "labels": years,
+                    "datasets": [
+                        {"type": "line", "label": "DEPENDENT - AVERAGE AGE", "data": dep_age, "borderColor": "#888", "fill": False},
+                        {"type": "line", "label": "DEPENDENT - N", "data": dep_n, "borderColor": "#555", "fill": False},
+                        {"type": "bar", "label": "EMPLOYEE - AVERAGE AGE", "data": emp_age, "backgroundColor": "#5A9AD4"},
+                        {"type": "bar", "label": "EMPLOYEE - N", "data": emp_n, "backgroundColor": "#2B3A5A"},
+                        {"type": "line", "label": "SPOUSE - AVERAGE AGE", "data": spo_age, "borderColor": "#ccc", "fill": False},
+                        {"type": "line", "label": "SPOUSE - N", "data": spo_n, "borderColor": "#aaa", "fill": False}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "top", "anchor": "end", "font": {"weight": "bold", "size": 9}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img1 = self._fetch_quickchart(cfg1, "chart_demo1.png")
+            if img1:
+                story.append(RLImage(img1, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+                
+        # Chart 2: Employees only
+        story.append(Paragraph("• For employees only, the mean age was:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        if cd_rel and cd_rel.data:
+            cfg2 = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": years,
+                    "datasets": [
+                        {"label": "EMPLOYEE - AVERAGE AGE", "data": emp_age, "backgroundColor": "#227EE4"},
+                        {"label": "EMPLOYEE - N", "data": emp_n, "backgroundColor": "#8192A6"}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 9}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img2 = self._fetch_quickchart(cfg2, "chart_demo2.png")
+            if img2:
+                story.append(RLImage(img2, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+                
+        story.append(PageBreak())
+        
+        # Chart 3: Number of Individuals by Age - Total
+        story.append(Paragraph("• Number of Individuals by Age - Total Population (Employee, Spouse & Dependent):", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_age = charts.get("demographics_age_group")
+        if cd_age and cd_age.data:
+            lbls = [r["AGE_GROUP"] for r in cd_age.data]
+            mean_age = [float(r["MEAN_AGE"] or 0) for r in cd_age.data]
+            n_val = [int(r["N"] or 0) for r in cd_age.data]
+            
+            cfg3 = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": lbls,
+                    "datasets": [
+                        {"type": "line", "label": "MEMBER AVERAGE AGE", "data": mean_age, "borderColor": "#666", "fill": False},
+                        {"type": "horizontalBar", "label": "N", "data": n_val, "backgroundColor": "#227EE4"}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 9}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img3 = self._fetch_quickchart(cfg3, "chart_demo3.png")
+            if img3:
+                story.append(RLImage(img3, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+                
+        # Chart 4: Gender breakdown
+        story.append(Paragraph("• The gender breakdown for the total population (Employee, Spouse & Dependent) was:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_gen = charts.get("demographics_gender_pct")
+        if cd_gen and cd_gen.data:
+            years_g = sorted(list(set(str(r["YR"]) for r in cd_gen.data)))
+            f_n = [int(next((r["N"] for r in cd_gen.data if str(r["YR"])==y and r["GENDER"]=='F'), 0)) for y in years_g]
+            m_n = [int(next((r["N"] for r in cd_gen.data if str(r["YR"])==y and r["GENDER"]=='M'), 0)) for y in years_g]
+            
+            cfg4 = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": years_g,
+                    "datasets": [
+                        {"label": "Female - N", "data": f_n, "backgroundColor": "#2B3A5A"},
+                        {"label": "Male - N", "data": m_n, "backgroundColor": "#227EE4"}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 9}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img4 = self._fetch_quickchart(cfg4, "chart_demo4.png")
+            if img4:
+                story.append(RLImage(img4, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+
+    def _section_3_medical_by_year(self, story, charts):
+        story.append(self._section_header_table("3. Overall Medical Expenditures by Year"))
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph("Medical expenditures* (based on paid claims) were as follows:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_med = charts.get("med_by_year")
+        if cd_med and cd_med.data:
+            years = [str(r["YR"]) for r in cd_med.data]
+            tot = [float(r["TOTAL_AMT"] or 0) for r in cd_med.data]
+            mean = [float(r["MEAN_AMT"] or 0) for r in cd_med.data]
+            n_val = [int(r["N"] or 0) for r in cd_med.data]
+            
+            # Table
+            t_data = [["Medical records Reporting Year", "Medical records TOTAL $", "Medical records MEAN $", "Medical records N"]]
+            sum_tot = 0
+            sum_n = 0
+            for i, y in enumerate(years):
+                t_data.append([y, f"${tot[i]:,.0f}", f"${mean[i]:,.0f}", f"{n_val[i]:,}"])
+                sum_tot += tot[i]
+                sum_n += n_val[i]
+                
+            t_data.append(["Total", f"${sum_tot:,.0f}", f"${(sum_tot/sum_n if sum_n else 0):,.0f}", f"{sum_n:,}"])
+            t = Table(t_data, colWidths=[2.5*inch, 1.6*inch, 1.6*inch, 1.6*inch])
+            style = [
+                ("BACKGROUND",    (0,0), (-1,0), LTBLUE),
+                ("TEXTCOLOR",     (0,0), (-1,0), rl_colors.grey),
+                ("FONTNAME",      (0,0), (-1,0), "Helvetica-Bold"),
+                ("FONTSIZE",      (0,0), (-1,-1), 8),
+                ("ALIGN",         (1,0), (-1,-1), "RIGHT"),
+                ("ALIGN",         (0,0), (0,-1), "LEFT"),
+                ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
+                ("ROWBACKGROUNDS",(0,1), (-1,-1), [WHITE, LTGREY]),
+                ("TOPPADDING",    (0,0), (-1,-1), 4),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ]
+            t.setStyle(TableStyle(style))
+            story.append(t)
+            story.append(Spacer(1, 0.1*inch))
+            
+            story.append(Paragraph("*Medical expenditures do not include pharmacy-related expenditures.", ParagraphStyle("small", parent=self.S["Body"], fontSize=8, fontName="Helvetica-Oblique")))
+            story.append(Paragraph("**N is a statistical notation that identifies the number of people in a population.", ParagraphStyle("small", parent=self.S["Body"], fontSize=8, fontName="Helvetica-Oblique")))
+            story.append(Spacer(1, 0.2*inch))
+            
+            # Chart 1: Total
+            story.append(Paragraph("<b>Total Amount Paid - Medical - Total Population</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
+            cfg_tot = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": years,
+                    "datasets": [
+                        {"label": "TOTAL $", "data": tot, "backgroundColor": "#227EE4"},
+                        {"label": "N", "data": n_val, "backgroundColor": "#8192A6"}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 9}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img_tot = self._fetch_quickchart(cfg_tot, "chart_medyr_tot.png")
+            if img_tot:
+                story.append(RLImage(img_tot, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+                
+            story.append(PageBreak())
+            
+            # Chart 2: Mean
+            story.append(Paragraph("<b>Mean Amount Paid - Medical - Total Population</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
+            cfg_mean = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": years,
+                    "datasets": [
+                        {"label": "MEAN $", "data": mean, "backgroundColor": "#227EE4"},
+                        {"label": "N", "data": n_val, "backgroundColor": "#8192A6"}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 9}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img_mean = self._fetch_quickchart(cfg_mean, "chart_medyr_mean.png")
+            if img_mean:
+                story.append(RLImage(img_mean, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+
+    def _section_4_medical_by_quarter(self, story, charts):
+        story.append(self._section_header_table("4. Overall Medical Expenditures by Quarter"))
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph("Medical expenditures were as follows:", self.S["Body"]))
+        story.append(Spacer(1, 0.2*inch))
+        
+        cd_q = charts.get("med_by_quarter")
+        if cd_q and cd_q.data:
+            lbls = [f"{r['YR']}-Q{r['QTR']}" for r in cd_q.data]
+            tot = [float(r["TOTAL_AMT"] or 0) for r in cd_q.data]
+            mean = [float(r["MEAN_AMT"] or 0) for r in cd_q.data]
+            n_val = [int(r["N"] or 0) for r in cd_q.data]
+            
+            story.append(Paragraph("<b>Total Amount Paid - Medical - Total Population</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
+            cfg_tot = {
+                "type": "bar",
+                "data": {
+                    "labels": lbls,
+                    "datasets": [
+                        {"type": "bar", "label": "TOTAL $", "data": tot, "backgroundColor": "#227EE4"},
+                        {"type": "line", "label": "N", "data": n_val, "borderColor": "#8192A6", "fill": False}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "top", "anchor": "end", "font": {"weight": "bold", "size": 8}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img_tot = self._fetch_quickchart(cfg_tot, "chart_medq_tot.png")
+            if img_tot:
+                story.append(RLImage(img_tot, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+                
+            story.append(Paragraph("<b>Mean Amount Paid - Medical - Total Population</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
+            cfg_mean = {
+                "type": "bar",
+                "data": {
+                    "labels": lbls,
+                    "datasets": [
+                        {"type": "bar", "label": "MEAN $", "data": mean, "backgroundColor": "#227EE4"},
+                        {"type": "line", "label": "N", "data": n_val, "borderColor": "#8192A6", "fill": False}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "top", "anchor": "end", "font": {"weight": "bold", "size": 8}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img_mean = self._fetch_quickchart(cfg_mean, "chart_medq_mean.png")
+            if img_mean:
+                story.append(RLImage(img_mean, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+
+    def _section_5_employee_expenditures(self, story, charts):
+        story.append(self._section_header_table("5. Employee/ Spouse/ Dependent Expenditures"))
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph("Medical expenditures related to Employees, Spouses, and Dependents were as follows:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_emp = charts.get("emp_spouse_dep")
+        if cd_emp and cd_emp.data:
+            years = sorted(list(set(str(r["YR"]) for r in cd_emp.data)))
+            
+            data_by_rel = {"EMPLOYEE": {"tot": [], "mean": [], "n": []}, 
+                           "SPOUSE": {"tot": [], "mean": [], "n": []}, 
+                           "DEPENDENT": {"tot": [], "mean": [], "n": []}}
+            
+            for rel in ["EMPLOYEE", "SPOUSE", "DEPENDENT"]:
+                for y in years:
+                    row = next((r for r in cd_emp.data if str(r["YR"]) == y and str(r.get("RELATIONSHIP","")) == rel), None)
+                    data_by_rel[rel]["tot"].append(float(row["TOTAL_AMT"]) if row and row.get("TOTAL_AMT") is not None else 0)
+                    data_by_rel[rel]["mean"].append(float(row["MEAN_AMT"]) if row and row.get("MEAN_AMT") is not None else 0)
+                    n_val = int(row["N"]) if row and row.get("N") is not None else 0
+                    data_by_rel[rel]["n"].append(n_val)
+                    if data_by_rel[rel]["mean"][-1] == 0 and n_val > 0:
+                         data_by_rel[rel]["mean"][-1] = data_by_rel[rel]["tot"][-1] / n_val
+            
+            headers = ["Medical records\\nReporting Year"] + [y for y in years]
+            t_data = [headers]
+            
+            sub_headers = ["Medical records\\nRELATIONSHIP TO\\nEMPLOYEE"]
+            for _ in years:
+                sub_headers.extend(["Medical\\nrecords\\nTOTAL $", "Medical\\nrecords\\nMEAN $", "Medical\\nrecords\\nN"])
+            
+            t_data[0] = ["Medical records\\nReporting Year"]
+            for y in years:
+                t_data[0].extend([y, "", ""])
+            
+            t_data.append(sub_headers)
+            
+            for rel in ["EMPLOYEE", "SPOUSE", "DEPENDENT"]:
+                row = [rel]
+                for i in range(len(years)):
+                    row.extend([f"${data_by_rel[rel]['tot'][i]:,.0f}", f"${data_by_rel[rel]['mean'][i]:,.0f}", f"{data_by_rel[rel]['n'][i]:,}"])
+                t_data.append(row)
+                
+            col_widths = [1.5*inch] + [0.65*inch] * (len(years) * 3)
+            t = Table(t_data, colWidths=col_widths)
+            
+            style = [
+                ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
+                ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
+                ("FONTNAME",      (0,0), (-1,1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0,0), (-1,-1), 7),
+                ("ALIGN",         (1,0), (-1,-1), "RIGHT"),
+                ("ALIGN",         (0,0), (0,-1), "LEFT"),
+                ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
+                ("SPAN",          (0,0), (0,1)),
+            ]
+            col_idx = 1
+            for _ in years:
+                style.append(("SPAN", (col_idx, 0), (col_idx+2, 0)))
+                col_idx += 3
+            t.setStyle(TableStyle(style))
+            story.append(t)
+            story.append(Spacer(1, 0.2*inch))
+            
+            story.append(Paragraph("<b>Total Amount Paid - Medical - Employee / Spouse / Dependent</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
+            cfg_emp = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": years,
+                    "datasets": [
+                        {"label": "EMPLOYEE - Total $", "data": data_by_rel["EMPLOYEE"]["tot"], "backgroundColor": "#2B3A5A"},
+                        {"label": "EMPLOYEE - Mean $", "data": data_by_rel["EMPLOYEE"]["mean"], "backgroundColor": "#227EE4"},
+                        {"type": "line", "label": "EMPLOYEE - N", "data": data_by_rel["EMPLOYEE"]["n"], "borderColor": "#8192A6", "fill": False}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 8}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img_emp = self._fetch_quickchart(cfg_emp, "chart_sec5.png")
+            if img_emp:
+                story.append(RLImage(img_emp, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
+
+    def _section_6_gender_expenditures(self, story, charts):
+        story.append(self._section_header_table("6. Gender Related Expenditures"))
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph("Medical expenditures related to Males and Females were as follows:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_gen = charts.get("gender_exp")
+        if cd_gen and cd_gen.data:
+            years = sorted(list(set(str(r["YR"]) for r in cd_gen.data)))
+            
+            data_by_gen = {"F": {"tot": [], "mean": [], "n": []}, 
+                           "M": {"tot": [], "mean": [], "n": []}}
+            
+            for gen in ["F", "M"]:
+                for y in years:
+                    row = next((r for r in cd_gen.data if str(r["YR"]) == y and str(r.get("GENDER","")) == gen), None)
+                    tot = float(row["TOTAL_AMT"]) if row and row.get("TOTAL_AMT") is not None else 0
+                    n_val = int(row["N"]) if row and row.get("N") is not None else 0
+                    mean = tot / n_val if n_val > 0 else 0
+                    data_by_gen[gen]["tot"].append(tot)
+                    data_by_gen[gen]["n"].append(n_val)
+                    data_by_gen[gen]["mean"].append(mean)
+            
+            t_data = [["Medical records\\nMEMBER GENDER"]]
+            for g in ["F", "M"]:
+                t_data[0].extend([g, "", ""])
+            
+            sub_headers = ["Medical records\\nReporting Year"]
+            for _ in ["F", "M"]:
+                sub_headers.extend(["Medical\\nrecords\\nTOTAL $", "Medical\\nrecords\\nMEAN $", "Medical\\nrecords\\nN"])
+            t_data.append(sub_headers)
+            
+            for i, y in enumerate(years):
+                row = [y]
+                for g in ["F", "M"]:
+                    row.extend([f"${data_by_gen[g]['tot'][i]:,.0f}", f"${data_by_gen[g]['mean'][i]:,.0f}", f"{data_by_gen[g]['n'][i]:,}"])
+                t_data.append(row)
+                
+            col_widths = [1.5*inch] + [0.95*inch] * 6
+            t = Table(t_data, colWidths=col_widths)
+            
+            style = [
+                ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
+                ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
+                ("FONTNAME",      (0,0), (-1,1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0,0), (-1,-1), 8),
+                ("ALIGN",         (1,0), (-1,-1), "RIGHT"),
+                ("ALIGN",         (0,0), (0,-1), "LEFT"),
+                ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
+                ("SPAN",          (0,0), (0,1)),
+                ("SPAN",          (1,0), (3,0)),
+                ("SPAN",          (4,0), (6,0)),
+            ]
+            t.setStyle(TableStyle(style))
+            story.append(t)
+            story.append(Spacer(1, 0.2*inch))
+            
+            story.append(Paragraph("<b>Total Amount Paid - Gender - Total Population</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
+            cfg_gen = {
+                "type": "horizontalBar",
+                "data": {
+                    "labels": years,
+                    "datasets": [
+                        {"label": "Female - Total $", "data": data_by_gen["F"]["tot"], "backgroundColor": "#2B3A5A"},
+                        {"type": "line", "label": "Female - N", "data": data_by_gen["F"]["n"], "borderColor": "#8192A6", "fill": False},
+                        {"label": "Male - Total $", "data": data_by_gen["M"]["tot"], "backgroundColor": "#227EE4"},
+                        {"type": "line", "label": "Male - N", "data": data_by_gen["M"]["n"], "borderColor": "#5A9AD4", "fill": False}
+                    ]
+                },
+                "options": {
+                    "plugins": {
+                        "datalabels": {"display": True, "align": "right", "anchor": "end", "font": {"weight": "bold", "size": 8}},
+                        "legend": {"position": "bottom"}
+                    }
+                }
+            }
+            img_gen = self._fetch_quickchart(cfg_gen, "chart_sec6.png")
+            if img_gen:
+                story.append(RLImage(img_gen, width=7.0*inch, height=3.5*inch))
+                story.append(Spacer(1, 0.2*inch))
