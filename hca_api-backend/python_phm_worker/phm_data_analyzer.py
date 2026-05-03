@@ -82,25 +82,39 @@ class PHMDataAnalyzer:
 
         # Ordered sections matching Long County report
         analyses = [
+            ("demographics_rel_age", self.analyze_demographics_rel_age),
+            ("demographics_age_group", self.analyze_demographics_age_group),
+            ("demographics_gender_pct", self.analyze_demographics_gender_pct),
             ("med_by_year",        self.analyze_medical_by_year),
             ("med_by_quarter",     self.analyze_medical_by_quarter),
             ("emp_spouse_dep",     self.analyze_employee_breakdown),
             ("gender_exp",         self.analyze_gender_expenditure),
-            ("risk_groups",        self.analyze_risk_groups),
+            ("diag_category",      self.analyze_diagnostic_categories),
             ("chronic_diseases",   self.analyze_chronic_diseases),
             ("diabetes_strat",     self.analyze_diabetes_stratification),
-            ("hospital_util",      self.analyze_hospital_utilization),
-            ("provider_type",      self.analyze_provider_type),
-            ("demographics",       self.analyze_demographics_pyramid),
+            ("diabetes_complications", self.analyze_diabetes_complications),
+            ("diabetes_comorbids", self.analyze_diabetes_comorbids),
+            ("diabetes_ebm",       self.analyze_diabetes_ebm_noncompliance),
+            ("risk_groups",        self.analyze_risk_groups),
+            ("lifestyle",          self.analyze_lifestyle_modifiable),
+            ("health_disparities", self.analyze_health_disparities),
             ("breast_screening",   self.analyze_breast_cancer_screening),
             ("cervical_screening", self.analyze_cervical_cancer_screening),
             ("colon_screening",    self.analyze_colon_cancer_screening),
+            ("screening_value",    self.analyze_preventive_screening_value),
+            ("msk_work",           self.analyze_musculoskeletal_work),
             ("catastrophic",       self.analyze_catastrophic_claims),
+            ("inpatient_er",       self.analyze_inpatient_outpatient_er),
+            ("avoidable_er",       self.analyze_avoidable_er),
+            ("pcp_specialty",      self.analyze_pcp_vs_specialty),
             ("pharm_by_year",      self.analyze_pharmacy_by_year),
             ("pharm_by_quarter",   self.analyze_pharmacy_by_quarter),
             ("pharm_relationship", self.analyze_pharmacy_by_relationship),
             ("brand_generic",      self.analyze_brand_generic),
             ("medication_mpr",     self.analyze_medication_compliance),
+            ("demographics",       self.analyze_demographics_pyramid),
+            ("hospital_util",      self.analyze_hospital_utilization),
+            ("provider_type",      self.analyze_provider_type),
         ]
 
         for key, fn in analyses:
@@ -136,6 +150,63 @@ class PHMDataAnalyzer:
             labels=[str(r["YR"]) for r in rows],
             values=[float(r.get("TOTAL_AMT") or 0) for r in rows],
         )
+
+
+    def analyze_demographics_rel_age(self) -> Optional[ChartData]:
+        dc = "DIAGNOSIS_DATE"
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   RELATIONSHIP_TO_EMPLOYEE AS relationship,
+                   AVG(PATIENT_AGE) AS mean_age,
+                   COUNT(DISTINCT UNIQUE_ID) AS n
+            FROM {self.config.schema}.LKR_TAB_MEDICAL
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND RELATIONSHIP_TO_EMPLOYEE IN ('EMPLOYEE', 'SPOUSE', 'DEPENDENT')
+            GROUP BY 1,2 ORDER BY 1,2
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        return ChartData(title="Demographics Rel Age", chart_type="bar", data=rows, x_axis="Year", y_axis="Mean Age", labels=[], values=[])
+
+    def analyze_demographics_age_group(self) -> Optional[ChartData]:
+        dc = "DIAGNOSIS_DATE"
+        sql = f"""
+            WITH bins AS (
+                SELECT UNIQUE_ID, PATIENT_AGE,
+                       CASE 
+                           WHEN PATIENT_AGE < 20 THEN 'Below 20'
+                           WHEN PATIENT_AGE BETWEEN 20 AND 29 THEN '20 to 29'
+                           WHEN PATIENT_AGE BETWEEN 30 AND 39 THEN '30 to 39'
+                           WHEN PATIENT_AGE BETWEEN 40 AND 49 THEN '40 to 49'
+                           WHEN PATIENT_AGE BETWEEN 50 AND 59 THEN '50 to 59'
+                           ELSE '60 or Above'
+                       END AS age_group
+                FROM {self.config.schema}.LKR_TAB_MEDICAL
+                WHERE YEAR({dc}) IN {self._get_years_clause()}
+            )
+            SELECT age_group, AVG(PATIENT_AGE) AS mean_age, COUNT(DISTINCT UNIQUE_ID) AS n
+            FROM bins GROUP BY 1 ORDER BY 
+                CASE age_group WHEN 'Below 20' THEN 1 WHEN '20 to 29' THEN 2 WHEN '30 to 39' THEN 3
+                WHEN '40 to 49' THEN 4 WHEN '50 to 59' THEN 5 ELSE 6 END DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        return ChartData(title="Demographics Age Group", chart_type="horizontalBar", data=rows, x_axis="Age Group", y_axis="N", labels=[], values=[])
+
+    def analyze_demographics_gender_pct(self) -> Optional[ChartData]:
+        dc = "DIAGNOSIS_DATE"
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   {self.config.medical_gender_col} AS gender,
+                   COUNT(DISTINCT UNIQUE_ID) AS n
+            FROM {self.config.schema}.LKR_TAB_MEDICAL
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND {self.config.medical_gender_col} IN ('M', 'F')
+            GROUP BY 1,2 ORDER BY 1,2
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        return ChartData(title="Demographics Gender", chart_type="horizontalBar", data=rows, x_axis="Year", y_axis="N", labels=[], values=[])
 
     def analyze_medical_by_quarter(self) -> Optional[ChartData]:
         dc = self.config.medical_date_col
@@ -208,6 +279,37 @@ class PHMDataAnalyzer:
             chart_type="bar",
             data=rows, x_axis="Gender", y_axis="Total Amount ($)",
             labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    # ── Diagnostic Categories (Section 7) ───────────────────────────────────
+
+    def analyze_diagnostic_categories(self) -> Optional[ChartData]:
+        dc = self.config.medical_date_col
+        diag = self.config.diag_category_col
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   {diag} AS category,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND {diag} IS NOT NULL
+            GROUP BY 1,2 ORDER BY 1, 3 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            c = str(r.get("CATEGORY", ""))
+            totals[c] = totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
+        top_cats = sorted(totals.items(), key=lambda x: x[1], reverse=True)[:10]
+        return ChartData(
+            title="Diagnostic Category Expenditures",
+            chart_type="horizontalBar",
+            data=rows, x_axis="Diagnostic Category", y_axis="Total Amount ($)",
+            labels=[x[0] for x in top_cats],
+            values=[x[1] for x in top_cats],
         )
 
     # ── Risk / Chronic / Diabetes ────────────────────────────────────────────
@@ -285,6 +387,155 @@ class PHMDataAnalyzer:
             chart_type="bar",
             data=rows, x_axis="Co-morbidities", y_axis="Member Count",
             labels=list(totals.keys()), values=[float(v) for v in totals.values()],
+        )
+
+    def analyze_diabetes_complications(self) -> Optional[ChartData]:
+        """Section 9 top table: Diabetes-specific complication categories by year (total $, N)."""
+        sql = f"""
+            SELECT FILE_YEAR,
+                   DIABETES_COMPLICATION_CATEGORY AS complication,
+                   SUM(CHRONIC_PAID_AMT) AS total_amt,
+                   COUNT(DISTINCT UNIQUE_ID) AS n
+            FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
+            WHERE FILE_YEAR IN {self._get_years_clause()}
+              AND CHRONIC_CAT LIKE '%DIABETES%'
+              AND DIABETES_COMPLICATION_CATEGORY IS NOT NULL
+            GROUP BY 1,2 ORDER BY 1, 3 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            c = str(r.get("COMPLICATION", ""))
+            totals[c] = totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
+        return ChartData(
+            title="Diabetes Complications Expenditures",
+            chart_type="horizontalBar",
+            data=rows, x_axis="Complication Type", y_axis="Total Amount ($)",
+            labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    def analyze_diabetes_comorbids(self) -> Optional[ChartData]:
+        """Section 9 co-morbidities chart: number of diabetic members with each co-morbidity."""
+        sql = f"""
+            SELECT FILE_YEAR,
+                   CHRONIC_CAT AS comorbid,
+                   COUNT(DISTINCT UNIQUE_ID) AS n
+            FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
+            WHERE FILE_YEAR IN {self._get_years_clause()}
+              AND UNIQUE_ID IN (
+                  SELECT DISTINCT UNIQUE_ID
+                  FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
+                  WHERE FILE_YEAR IN {self._get_years_clause()}
+                    AND CHRONIC_CAT LIKE '%DIABETES%'
+              )
+              AND CHRONIC_CAT IS NOT NULL
+              AND CHRONIC_CAT NOT LIKE '%DIABETES%'
+            GROUP BY 1,2 ORDER BY 1, 3 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        totals: Dict[str, int] = {}
+        for r in rows:
+            c = str(r.get("COMORBID", ""))
+            totals[c] = totals.get(c, 0) + int(r.get("N") or 0)
+        top = sorted(totals.items(), key=lambda x: x[1], reverse=True)[:10]
+        return ChartData(
+            title="Diabetes Co-morbidities",
+            chart_type="horizontalBar",
+            data=rows, x_axis="Co-morbidity", y_axis="Member Count",
+            labels=[x[0] for x in top], values=[float(x[1]) for x in top],
+        )
+
+    def analyze_diabetes_ebm_noncompliance(self) -> Optional[ChartData]:
+        """Section 10: diabetic members non-compliant per EBM measure per year.
+
+        Eligible = members in VW_RISK_GROUP_MIGRATION with CHRONIC_CAT LIKE '%DIABETES%'.
+        Medication non-compliance: member has no dispensed ACE_INHIBITOR / ARB / DRI / STATIN
+            drug in VW_MEDICATION_POSSESSION_RATIO for that year.
+        Exam non-compliance (Foot Exam, Eye Exam, HbA1c): member has no matching CPT claim
+            across PRIMARY_PROCEDURE_CODE or PROCEDURE_CODE_2..10 in STG_TAB_MEDICAL_DATA.
+        """
+        dc = self.config.medical_date_col
+
+        # HEDIS CPT code sets — checked across all procedure code columns
+        FOOT_EXAM_CPTS = ("'G0245','G0246','97597','97598','11055','11056','11057',"
+                          "'11720','11721','Q4051'")
+        EYE_EXAM_CPTS  = ("'92002','92004','92012','92014','92134','92250',"
+                          "'99203','99204','99205','99213','99214','99215','2022F','2024F'")
+        HBA1C_CPTS     = ("'83036','83037','3044F','3045F','3046F','2018F'")
+
+        # Helper: one CASE per procedure code column, OR-ed together
+        def _cpt_match(cpts: str) -> str:
+            cols = [
+                "PRIMARY_PROCEDURE_CODE",
+                "PROCEDURE_CODE_2", "PROCEDURE_CODE_3", "PROCEDURE_CODE_4",
+                "PROCEDURE_CODE_5", "PROCEDURE_CODE_6", "PROCEDURE_CODE_7",
+                "PROCEDURE_CODE_8", "PROCEDURE_CODE_9", "PROCEDURE_CODE_10",
+            ]
+            conditions = " OR ".join(f"UPPER(TRIM({c})) IN ({cpts})" for c in cols)
+            return f"CASE WHEN {conditions} THEN 1 ELSE 0 END"
+
+        sql = f"""
+            WITH DIABETIC_MEMBERS AS (
+                SELECT DISTINCT UNIQUE_ID, FILE_YEAR AS yr
+                FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
+                WHERE FILE_YEAR IN {self._get_years_clause()}
+                  AND CHRONIC_CAT LIKE '%DIABETES%'
+            ),
+            RX_FLAGS AS (
+                SELECT
+                    UNIQUE_ID,
+                    YEAR AS yr,
+                    MAX(CASE WHEN UPPER(TRIM(ACE_INHIBITOR)) = 'TRUE' THEN 1 ELSE 0 END) AS has_ace,
+                    MAX(CASE WHEN UPPER(TRIM(ARB))           = 'TRUE' THEN 1 ELSE 0 END) AS has_arb,
+                    MAX(CASE WHEN UPPER(TRIM(DRI))           = 'TRUE' THEN 1 ELSE 0 END) AS has_dri,
+                    MAX(CASE WHEN STATIN_FLAG                = 1      THEN 1 ELSE 0 END) AS has_statin
+                FROM {self.config.schema}.VW_MEDICATION_POSSESSION_RATIO
+                WHERE YEAR IN {self._get_years_clause()}
+                GROUP BY 1, 2
+            ),
+            EXAM_FLAGS AS (
+                SELECT
+                    {self.config.member_col} AS UNIQUE_ID,
+                    YEAR({dc}) AS yr,
+                    MAX({_cpt_match(FOOT_EXAM_CPTS)}) AS has_foot,
+                    MAX({_cpt_match(EYE_EXAM_CPTS)})  AS has_eye,
+                    MAX({_cpt_match(HBA1C_CPTS)})      AS has_hba1c
+                FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+                WHERE YEAR({dc}) IN {self._get_years_clause()}
+                GROUP BY 1, 2
+            )
+            SELECT
+                d.yr                                                          AS year,
+                COUNT(DISTINCT d.UNIQUE_ID)                                   AS total_eligible,
+                COUNT(DISTINCT CASE WHEN COALESCE(r.has_ace,    0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_ace,
+                COUNT(DISTINCT CASE WHEN COALESCE(r.has_arb,    0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_arb,
+                COUNT(DISTINCT CASE WHEN COALESCE(r.has_dri,    0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_dri,
+                COUNT(DISTINCT CASE WHEN COALESCE(r.has_statin, 0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_statin,
+                COUNT(DISTINCT CASE WHEN COALESCE(e.has_foot,   0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_foot_exam,
+                COUNT(DISTINCT CASE WHEN COALESCE(e.has_eye,    0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_eye_exam,
+                COUNT(DISTINCT CASE WHEN COALESCE(e.has_hba1c,  0) = 0
+                                    THEN d.UNIQUE_ID END)                     AS no_hba1c
+            FROM DIABETIC_MEMBERS d
+            LEFT JOIN RX_FLAGS   r ON r.UNIQUE_ID = d.UNIQUE_ID AND r.yr = d.yr
+            LEFT JOIN EXAM_FLAGS e ON e.UNIQUE_ID = d.UNIQUE_ID AND e.yr = d.yr
+            GROUP BY 1 ORDER BY 1
+        """
+        rows = self.snowflake.query(sql)
+        if not rows: return None
+        return ChartData(
+            title="Diabetes Non-Compliance to Evidence-Based Medicine",
+            chart_type="table",
+            data=rows, x_axis="Year", y_axis="Non-Compliant Members",
+            labels=[str(r["YEAR"]) for r in rows],
+            values=[float(r.get("NO_HBA1C") or 0) for r in rows],
         )
 
     # ── Utilization ──────────────────────────────────────────────────────────
@@ -550,6 +801,252 @@ class PHMDataAnalyzer:
             labels=[str(r["YEAR"]) for r in rows],
             values=[float(r.get("ALL_MPR") or 0) for r in rows],
         )
+
+    # ── Section 12: Lifestyle Modifiable & Preventive Utilization ────────────
+
+    def analyze_lifestyle_modifiable(self) -> Optional[ChartData]:
+        """Lifestyle-modifiable diagnoses (obesity, tobacco, alcohol, sedentary) by year."""
+        dc = self.config.medical_date_col
+        LIFESTYLE_GROUPS = (
+            "'OBESITY','TOBACCO USE','ALCOHOL USE','SUBSTANCE ABUSE',"
+            "'SEDENTARY LIFESTYLE','STRESS/MENTAL HEALTH'"
+        )
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   {self.config.diag_category_col} AS category,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND UPPER({self.config.diag_category_col}) IN ({LIFESTYLE_GROUPS})
+            GROUP BY 1,2 ORDER BY 1, 3 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            c = str(r.get("CATEGORY", ""))
+            totals[c] = totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
+        return ChartData(
+            title="Lifestyle Modifiable & Preventive Utilization",
+            chart_type="horizontalBar",
+            data=rows, x_axis="Category", y_axis="Total Amount ($)",
+            labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    # ── Section 13: Estimated Lost Time & Cost due to Health Disparities ──────
+
+    def analyze_health_disparities(self) -> Optional[ChartData]:
+        """Lost-time / absenteeism proxy: diagnostic categories with high frequency but low cost."""
+        dc = self.config.medical_date_col
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   {self.config.diag_category_col} AS category,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND {self.config.diag_category_col} IS NOT NULL
+            GROUP BY 1,2 ORDER BY 1, 5 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            return None
+        return ChartData(
+            title="Estimated Lost Time & Cost due to Health Disparities",
+            chart_type="table",
+            data=rows, x_axis="Category", y_axis="N",
+            labels=[], values=[],
+        )
+
+    # ── Section 15: Value of Preventive Screenings ────────────────────────────
+
+    def analyze_preventive_screening_value(self) -> Optional[ChartData]:
+        """Cancer diagnoses detected after screening (breast, cervical, colon) by year."""
+        sql = f"""
+            SELECT YEAR,
+                   CANCER_SCREENING,
+                   COUNT(DISTINCT CASE WHEN CANCER_DIAGNOSIS_DATE IS NOT NULL THEN UNIQUE_ID END) AS diagnosed_n,
+                   COUNT(DISTINCT UNIQUE_ID) AS eligible_n,
+                   SUM(CASE WHEN CANCER_DIAGNOSIS_DATE IS NOT NULL THEN COALESCE(CANCER_TREATMENT_COST, 0) ELSE 0 END) AS treatment_cost
+            FROM {self.config.schema}.VW_PREVENTIVE_SCREENING
+            WHERE YEAR IN {self._get_years_clause()}
+            GROUP BY 1,2 ORDER BY 1,2
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            return None
+        return ChartData(
+            title="Value of Preventive Screenings — Cancer Diagnoses Identified",
+            chart_type="table",
+            data=rows, x_axis="Cancer Type", y_axis="Diagnosed N",
+            labels=[], values=[],
+        )
+
+    # ── Section 16: Work-Related Musculoskeletal Expenditures ─────────────────
+
+    def analyze_musculoskeletal_work(self) -> Optional[ChartData]:
+        """Potentially work-related MSK claims (body-part buckets) by year."""
+        dc = self.config.medical_date_col
+        MSK_BODY_PARTS = (
+            "'BACK','NECK','SHOULDER','HAND','WRIST','KNEE','HIP',"
+            "'FOOT','ANKLE','UPPER EXTREMITY','LOWER EXTREMITY','SPINE'"
+        )
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   COALESCE(BODY_PART_DESCRIPTION, 'OTHER') AS body_part,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
+              AND BODY_PART_DESCRIPTION IS NOT NULL
+            GROUP BY 1,2 ORDER BY 1, 3 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            # Fallback: aggregate all MSK without body-part breakdown
+            sql2 = f"""
+                SELECT YEAR({dc}) AS yr,
+                       'MUSCULOSKELETAL' AS body_part,
+                       SUM({self.config.medical_amount_col}) AS total_amt,
+                       AVG({self.config.medical_amount_col}) AS mean_amt,
+                       COUNT(DISTINCT {self.config.member_col}) AS n
+                FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+                WHERE YEAR({dc}) IN {self._get_years_clause()}
+                  AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
+                GROUP BY 1,2 ORDER BY 1
+            """
+            rows = self.snowflake.query(sql2)
+        if not rows:
+            return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            bp = str(r.get("BODY_PART", ""))
+            totals[bp] = totals.get(bp, 0) + float(r.get("TOTAL_AMT") or 0)
+        return ChartData(
+            title="Potentially Work-Related Musculoskeletal Expenditures",
+            chart_type="horizontalBar",
+            data=rows, x_axis="Body Part", y_axis="Total Amount ($)",
+            labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    # ── Section 18: Inpatient / Outpatient / ER ───────────────────────────────
+
+    def analyze_inpatient_outpatient_er(self) -> Optional[ChartData]:
+        """ER, inpatient, outpatient expenditures by year with separate breakout."""
+        dc = self.config.medical_date_col
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   CASE
+                     WHEN UPPER(HOSPITALIZED_OR_NOT) = 'YES'            THEN 'Inpatient'
+                     WHEN UPPER({self.config.pos_col}) LIKE '%EMERGENCY%' THEN 'Emergency Room'
+                     ELSE 'Outpatient'
+                   END AS service_type,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+            GROUP BY 1,2 ORDER BY 1,2
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            s = str(r.get("SERVICE_TYPE", ""))
+            totals[s] = totals.get(s, 0) + float(r.get("TOTAL_AMT") or 0)
+        return ChartData(
+            title="Inpatient / Outpatient / Emergency Room Expenditures",
+            chart_type="bar",
+            data=rows, x_axis="Service Type", y_axis="Total Amount ($)",
+            labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    # ── Section 19: Avoidable ER Visits ──────────────────────────────────────
+
+    def analyze_avoidable_er(self) -> Optional[ChartData]:
+        """ER visits for conditions treatable in primary care (AHRQ avoidable ER ICD codes)."""
+        dc = self.config.medical_date_col
+        # AHRQ-defined ambulatory-care-sensitive ICD-10 diagnosis prefixes
+        AVOIDABLE_ICD_PREFIXES = (
+            "'J06','J20','J45','J22','N39','K59','K57','K21','H66','J32',"
+            "'N390','L03','R51','F41','G43'"
+        )
+        pos_col = self.config.pos_col
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   COALESCE(PRIMARY_DIAGNOSIS_DESC, PRIMARY_DIAGNOSIS_CODE) AS diagnosis,
+                   PRIMARY_DIAGNOSIS_CODE AS icd_code,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+              AND UPPER({pos_col}) LIKE '%EMERGENCY%'
+              AND (
+                    LEFT(UPPER(TRIM(PRIMARY_DIAGNOSIS_CODE)), 3) IN ({AVOIDABLE_ICD_PREFIXES})
+                 OR LEFT(UPPER(TRIM(PRIMARY_DIAGNOSIS_CODE)), 4) IN ({AVOIDABLE_ICD_PREFIXES})
+              )
+            GROUP BY 1,2,3 ORDER BY 1, 4 DESC
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            d = str(r.get("DIAGNOSIS", ""))
+            totals[d] = totals.get(d, 0) + float(r.get("TOTAL_AMT") or 0)
+        return ChartData(
+            title="Avoidable Emergency Room Visits",
+            chart_type="table",
+            data=rows, x_axis="Diagnosis", y_axis="Total Amount ($)",
+            labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    # ── Section 20: Primary Care Physician & Specialty Expenditures ───────────
+
+    def analyze_pcp_vs_specialty(self) -> Optional[ChartData]:
+        """PCP vs specialist expenditure split by year."""
+        dc = self.config.medical_date_col
+        sql = f"""
+            SELECT YEAR({dc}) AS yr,
+                   CASE
+                     WHEN UPPER(COALESCE(SERVICE_PROVIDER_TYPE_DESCRIPTION,'')) LIKE '%PRIMARY%'
+                          OR UPPER(COALESCE(SERVICE_PROVIDER_TYPE_DESCRIPTION,'')) LIKE '%FAMILY%'
+                          OR UPPER(COALESCE(SERVICE_PROVIDER_TYPE_DESCRIPTION,'')) LIKE '%INTERNAL MED%'
+                          OR UPPER(COALESCE(SERVICE_PROVIDER_TYPE_DESCRIPTION,'')) LIKE '%GENERAL PRACT%'
+                       THEN 'Primary Care Physician Services'
+                     ELSE 'Other/Specialty Services'
+                   END AS provider_class,
+                   SUM({self.config.medical_amount_col}) AS total_amt,
+                   AVG({self.config.medical_amount_col}) AS mean_amt,
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
+            WHERE YEAR({dc}) IN {self._get_years_clause()}
+            GROUP BY 1,2 ORDER BY 1,2
+        """
+        rows = self.snowflake.query(sql)
+        if not rows:
+            return None
+        totals: Dict[str, float] = {}
+        for r in rows:
+            p = str(r.get("PROVIDER_CLASS", ""))
+            totals[p] = totals.get(p, 0) + float(r.get("TOTAL_AMT") or 0)
+        return ChartData(
+            title="Primary Care Physician & Specialty Expenditures",
+            chart_type="bar",
+            data=rows, x_axis="Provider Class", y_axis="Total Amount ($)",
+            labels=list(totals.keys()), values=list(totals.values()),
+        )
+
+    # ── Section 23: Pharmacy by Relationship ─────────────────────────────────
+    # (already have analyze_pharmacy_by_relationship — aliased below for clarity)
 
     def get_summary_stats(self) -> Dict[str, Any]:
         return {
