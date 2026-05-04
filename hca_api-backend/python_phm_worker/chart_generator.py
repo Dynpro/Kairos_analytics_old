@@ -1665,27 +1665,30 @@ class PDFReportGenerator:
             if c and c not in seen:
                 cats.append(c)
                 seen.add(c)
+        
+        # Limit to top 20 categories to prevent exceeding 2 pages
+        cats = cats[:20]
 
         lookup: Dict[tuple, dict] = {}
         for r in cd.data:
             lookup[(str(r.get("CATEGORY", "")), str(r.get("YR", "")))] = r
 
         # Header rows
-        hdr1 = ["Diagnostic Category"] + [y for y in years for _ in range(2)]
-        hdr2 = [""] + ["Total $", "N"] * len(years)
+        hdr1 = ["Medical records Reporting Year"] + [y for y in years for _ in range(2)]
+        hdr2 = ["Medical records DIAGNOSTIC CATEGORY"] + ["Medical\nrecords\nTOTAL $", "Medical\nrecords\nN"] * len(years)
         t_data = [hdr1, hdr2]
         for cat in cats:
             row = [cat]
             for y in years:
                 r = lookup.get((cat, y), {})
                 row += [
-                    f"${float(r.get('TOTAL_AMT') or 0):,.0f}",
-                    f"{int(r.get('N') or 0):,}",
+                    f"${float(r.get('TOTAL_AMT') or 0):,.0f}" if r else "$0",
+                    f"{int(r.get('N') or 0):,}" if r else "0",
                 ]
             t_data.append(row)
 
         ncols = len(hdr1)
-        cat_w = 2.8 * inch
+        cat_w = 3.5 * inch
         col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
         t = Table(t_data, colWidths=col_w, repeatRows=2)
         style = [
@@ -1744,16 +1747,26 @@ class PDFReportGenerator:
                                ParagraphStyle("cen7m", parent=self.S["Body"], alignment=TA_CENTER)))
         story.append(Spacer(1, 0.05*inch))
 
-        hdr1m = ["Diagnostic Category"] + [y for y in years for _ in range(2)]
-        hdr2m = [""] + ["Mean $", "N"] * len(years)
+        # We will re-sort the 'cats' array based on MEAN_AMT to match the "Mean Amount Paid" table requirement
+        cats_mean = []
+        seen_mean = set()
+        for r in sorted(cd.data, key=lambda x: -float(x.get("MEAN_AMT") or 0)):
+            c = str(r.get("CATEGORY", ""))
+            if c and c not in seen_mean:
+                cats_mean.append(c)
+                seen_mean.add(c)
+        cats_mean = cats_mean[:20]
+
+        hdr1m = ["Medical records Reporting Year"] + [y for y in years for _ in range(2)]
+        hdr2m = ["Medical records DIAGNOSTIC CATEGORY"] + ["Medical\nrecords\nMEAN $", "Medical\nrecords\nN"] * len(years)
         t_data_m = [hdr1m, hdr2m]
-        for cat in cats:
+        for cat in cats_mean:
             row = [cat]
             for y in years:
                 r = lookup.get((cat, y), {})
                 row += [
-                    f"${float(r.get('MEAN_AMT') or 0):,.0f}",
-                    f"{int(r.get('N') or 0):,}",
+                    f"${float(r.get('MEAN_AMT') or 0):,.0f}" if r else "$0",
+                    f"{int(r.get('N') or 0):,}" if r else "0",
                 ]
             t_data_m.append(row)
 
