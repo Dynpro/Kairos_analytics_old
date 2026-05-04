@@ -343,8 +343,7 @@ class PDFReportGenerator:
             story.append(PageBreak())
 
             # 3. Executive Summary
-            self._executive_summary(story, charts.get("risk_groups"))
-            story.append(PageBreak())
+            self._executive_summary(story, charts)
 
             # 4. Sections 2, 3, 4
             self._section_2_demographics(story, charts)
@@ -453,44 +452,530 @@ class PDFReportGenerator:
         ]))
         return t
 
-    def _executive_summary(self, story, risk_cd: Optional[ChartData]):
-        hdr = self._section_header_table("Executive Summary")
-        hdr._toc_entry = "Executive Summary"
+    def _executive_summary(self, story, charts):
+        hdr = self._section_header_table("1. Executive Summary")
+        hdr._toc_entry = "1. Executive Summary"
         story.append(hdr)
-        story.append(Spacer(1, 0.1*inch))
+        story.append(Spacer(1, 0.2*inch))
 
-        intro = (
+        # Introduction
+        story.append(Paragraph("<b>Introduction:</b>", self.S["SubHead"]))
+        story.append(Spacer(1, 0.1*inch))
+        intro_text1 = (
             "The following report is the result of an analysis of archival medical and pharmacy "
             "utilization data. The intent of this analysis is to yield a better understanding of "
             "the epidemiology currently influencing this population and to suggest population health "
-            "management opportunities. Archival data was processed through proprietary algorithms to "
-            "properly risk-stratify the population."
+            "management opportunities that can address the specific risk impacting this population. "
+            "In order to accomplish this task, archival data was processed through proprietary "
+            "algorithms in order to properly risk-stratify the population. The risk of a "
+            "population has a direct relationship to current and future spending patterns. "
+            "Variables that are the building blocks of risk and/or disease include, but are not limited to:"
         )
-        story.append(Paragraph(intro, self.S["Body"]))
+        story.append(Paragraph(intro_text1, self.S["Body"]))
+        
+        # Bullet list
+        bullet_style = ParagraphStyle("Bullet", parent=self.S["Body"], leftIndent=20, bulletIndent=10)
+        story.append(Paragraph("<bullet>&bull;</bullet>Age, Gender, Lifestyle, Genetics, Chronic Illness, Co-Morbidities, Multi-Morbidities, Medication Compliance/Non-Compliance, Compliance/Non-Compliance to Evidence-Based Guidelines, Gaps in Care, etc.", bullet_style))
         story.append(Spacer(1, 0.1*inch))
 
-        # Disease group definition table (static, matches Long County)
-        story.append(Paragraph("Disease Group Definitions:", self.S["SubHead"]))
-        def_data = [
-            ["Disease Group", "Definition"],
-            ["Group 1", "No chronic disease and less than $1,500 in medical expenditures per 12 months"],
-            ["Group 2", "No chronic disease and $1,500 or more in medical expenditures per 12 months"],
-            ["Group 3", "One Chronic Disease"],
-            ["Group 4", "Two Chronic Diseases"],
-            ["Group 5", "Three Chronic Diseases"],
-            ["Group 6", "Four Chronic Diseases"],
-            ["Group 7", "Five or More Chronic Diseases"],
+        intro_text2 = (
+            "The majority of the aforementioned variables were utilized to investigate risk "
+            "stratifications within the population. The overall health of a population is determined "
+            "by multiple factors; however, an individual's lifestyle is a powerful predictor of "
+            "leading causes of morbidity and disability."
+        )
+        story.append(Paragraph(intro_text2, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        intro_text3 = "This analysis explored multiple areas of interest within the data, including the following research questions:"
+        story.append(Paragraph(intro_text3, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        num_style = ParagraphStyle("NumList", parent=self.S["Body"], leftIndent=20, firstLineIndent=-15)
+        questions = [
+            "1. What is the cost burden of lifestyle modifiable risk factors within the employee population?",
+            "2. What is the relationship of age and gender to various disease states?",
+            "3. What are the gaps in care associated with suggested preventive measures for this population?",
+            "4. What is the relationship between drug compliance and non-compliance, as related to disease severity?",
+            "5. What is the financial burden associated with chronic disease within this population?",
+            "6. What is the level of HEDIS compliance (i.e., evidence-based & preventive medicine) within this population?",
+            "7. What is the expense related to specific co-morbidities (i.e., hypertension, hyperlipidemia, depression, etc.) within this population?",
+            "8. What variables best predict and explain future high spenders within this population?",
+            "9. What are actionable solutions that can be implemented to mitigate existing and future health risks?"
         ]
-        t = self._make_table(def_data, col_widths=[1.4*inch, 5.9*inch])
-        story.append(t)
+        for q in questions:
+            story.append(Paragraph(q, num_style))
+        
+        story.append(Spacer(1, 0.2*inch))
+
+        story.append(Paragraph("<b>Key Findings and Solutions for Consideration:</b>", self.S["SubHead"]))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph("The following key findings resulted from the analysis of archival health care data.", self.S["Body"]))
+        story.append(Spacer(1, 0.2*inch))
+
+        # Key Finding 1: Chronic Disease
+        story.append(Paragraph("<b>Key Finding 1: Chronic Disease</b>", self.S["SubHead"]))
+        story.append(Spacer(1, 0.1*inch))
+        kf1_text = (
+            "<b>Key Finding:</b> Patterns of risk generally occur within any given population. In order "
+            "to better understand these patterns, the population was risk stratified into five distinct groups:"
+        )
+        story.append(Paragraph(kf1_text, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        # Disease Group Table
+        def_data = [
+            ["Group", "Description"],
+            ["Disease Group-1", "No chronic disease and less than $1,500 medical expenditures per 12 months"],
+            ["Disease Group-2", "No chronic disease and $1,500 or more medical expenditures per 12 months"],
+            ["Disease Group-3", "One Chronic Disease"],
+            ["Disease Group-4", "Two Chronic Disease"],
+            ["Disease Group-5", "Three Chronic Disease"],
+            ["Disease Group-6", "Four Chronic Disease"],
+            ["Disease Group-7", "Five or More Chronic Disease"],
+        ]
+        t1 = Table(def_data, colWidths=[1.8*inch, 5.5*inch])
+        t1.setStyle(TableStyle([
+            ("BACKGROUND",    (0,0), (-1,0), LTBLUE),
+            ("TEXTCOLOR",     (0,0), (-1,0), rl_colors.grey),
+            ("FONTNAME",      (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTNAME",      (0,1), (-1,-1), "Helvetica"),
+            ("FONTSIZE",      (0,0), (-1,-1), 8),
+            ("ALIGN",         (0,0), (-1,-1), "LEFT"),
+            ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
+            ("TEXTCOLOR",     (0,1), (0,-1), rl_colors.black),
+            ("TEXTCOLOR",     (1,1), (1,-1), rl_colors.grey),
+            ("TOPPADDING",    (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ]))
+        story.append(t1)
         story.append(Spacer(1, 0.15*inch))
 
-        # Dynamic Risk Group Summary table from Snowflake
+        kf1_post_table = (
+            "Total amount paid, Mean amount paid & Total patients (N) within the population for Risk "
+            "Groups & Years were as follows (shown in chart below). As you would see in the analysis "
+            "below; regarding the economic differences between each group; it reveals that mean "
+            "expenditures increased as an individual incrementally progressed from a lower risk group "
+            "to higher risk groups; from Group 3 - 7."
+        )
+        story.append(Paragraph(kf1_post_table, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        story.append(Paragraph(
+            "<i>**N is a statistical notation that identifies the number of people in a population. Throughout this report, it is used to indicate the number of individuals incorporated into each analysis.</i>",
+            self.S["Body"]
+        ))
+        
+        story.append(PageBreak())
+
+        # Page 4
+        risk_cd = charts.get("risk_groups")
         if risk_cd and risk_cd.data:
-            story.append(Paragraph("Risk Group Summary:", self.S["SubHead"]))
             pivot = self._pivot_risk_data(risk_cd.data)
             story.append(pivot)
+            story.append(Spacer(1, 0.2*inch))
 
+        story.append(Paragraph("Based on the chronic diseases included in the aforementioned Disease Group Risk Stratification, below are the top 3 Chronic diseases across all population who have a chronic disease. It would be estimated that an additional 10 to 15 percent of the population have chronic illness and have not yet been diagnosed, due to gaps in care.", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph("The top 3 most expensive chronic diseases across populations & years were as follows (shown in chart below):", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        # Top 3 most expensive chronic diseases
+        cd_chronic = charts.get("chronic_diseases")
+        if cd_chronic and cd_chronic.data:
+            years = sorted({str(r.get("FILE_YEAR", "")) for r in cd_chronic.data})
+            lookup: Dict[tuple, dict] = {}
+            cat_totals: Dict[str, float] = {}
+            for r in cd_chronic.data:
+                c = str(r.get("CHRONIC_CAT", ""))
+                cat_totals[c] = cat_totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
+                lookup[(c, str(r.get("FILE_YEAR", "")))] = r
+            
+            cats_by_total = [k for k, _ in sorted(cat_totals.items(), key=lambda x: x[1], reverse=True)[:3]]
+            
+            hdr1 = ["Medical records Reporting Year"] + years
+            hdr2 = ["Medical records CHRONIC CATEGORY"] + ["Medical records\nTOTAL $"] * len(years)
+            t_data_exp = [hdr1, hdr2]
+            
+            for cat in cats_by_total:
+                row = [cat]
+                for y in years:
+                    r = lookup.get((cat, y), {})
+                    amt = float(r.get("TOTAL_AMT") or 0) if r else 0
+                    row.append(f"${amt:,.0f}" if (r and amt) else "$0")
+                t_data_exp.append(row)
+            
+            ncols = len(hdr1)
+            cat_w = 3.5 * inch
+            col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
+            t_exp = Table(t_data_exp, colWidths=col_w, repeatRows=2)
+            t_exp.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
+                ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+                ("ALIGN",         (1, 0), (-1, -1), "RIGHT"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+                ("TEXTCOLOR",     (0, 2), (-1, -1), rl_colors.grey),
+            ]))
+            story.append(t_exp)
+            story.append(Spacer(1, 0.2*inch))
+
+            story.append(Paragraph("The top 3 most frequent chronic diseases across populations were:", self.S["Body"]))
+            story.append(Spacer(1, 0.1*inch))
+            
+            story.append(PageBreak()) # Next page for the freq table according to Image 3 (Page 5)
+            
+            # Freq table
+            cat_n_totals: Dict[str, int] = {}
+            for r in cd_chronic.data:
+                c = str(r.get("CHRONIC_CAT", ""))
+                cat_n_totals[c] = cat_n_totals.get(c, 0) + int(r.get("N") or 0)
+            cats_by_freq = [k for k, _ in sorted(cat_n_totals.items(), key=lambda x: x[1], reverse=True)[:3]]
+            
+            hdr1_freq = ["Medical records Reporting Year"] + years
+            hdr2_freq = ["Medical records CHRONIC CATEGORY"] + ["Medical records N"] * len(years)
+            t_data_freq = [hdr1_freq, hdr2_freq]
+            for cat in cats_by_freq:
+                row = [cat]
+                for y in years:
+                    r = lookup.get((cat, y), {})
+                    n = int(r.get("N") or 0) if r else 0
+                    row.append(str(n) if (r and n) else "")
+                t_data_freq.append(row)
+                
+            t_freq = Table(t_data_freq, colWidths=col_w, repeatRows=2)
+            t_freq.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
+                ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+                ("ALIGN",         (1, 0), (-1, -1), "RIGHT"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+                ("TEXTCOLOR",     (0, 2), (-1, -1), rl_colors.grey),
+            ]))
+            story.append(t_freq)
+            story.append(Spacer(1, 0.2*inch))
+
+        rec_sol_kf1 = (
+            "<b>Recommended Solution:</b> The impact of chronic disease, co-morbidities, and disease-specific "
+            "complications magnifies the impact of an individual's mean and overall expenditures. This type of "
+            "stratification (i.e., the aforementioned Disease Group Risk Stratification) clearly shows that a "
+            "relatively similar group of individuals drives a large percentage of overall expenditures. A "
+            "population health management strategy that targets the low-risk or emerging risk portion of the "
+            "population would potentially yield the highest return on investment.<br/><br/>"
+            "The majority of wellness program strategies often do not implement programs that are sensitive to "
+            "the clinical side of population health management and just concentrate on lifestyle modification "
+            "(e.g., exercise, nutrition, stress management, etc.). However, in order to be effective with the "
+            "chronic population, clinical strategies must be a part of the overall population health management "
+            "strategy. Further analyses were conducted to identify the importance of chronic disease as a "
+            "predictor of future spending."
+        )
+        story.append(Paragraph(rec_sol_kf1, self.S["Body"]))
+        story.append(Spacer(1, 0.2*inch))
+
+        # Key Finding 2: Diabetes Complications and Co-Morbidities
+        story.append(Paragraph("<b>Key Finding 2: Diabetes Complications and Co-Morbidities</b>", self.S["SubHead"]))
+        story.append(Spacer(1, 0.1*inch))
+        kf2_text = "<b>Key Finding:</b> The top three Diabetes-specific complications are shown in the chart below in order of their Total Spend across years."
+        story.append(Paragraph(kf2_text, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        cd_comp = charts.get("diabetes_complications")
+        if cd_comp and cd_comp.data:
+            years = sorted({str(r.get("FILE_YEAR", "")) for r in cd_comp.data})
+            lookup: Dict[tuple, dict] = {}
+            comp_totals: Dict[str, float] = {}
+            for r in cd_comp.data:
+                c = str(r.get("COMPLICATION", ""))
+                comp_totals[c] = comp_totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
+                lookup[(c, str(r.get("FILE_YEAR", "")))] = r
+            
+            top3_comps = [k for k, _ in sorted(comp_totals.items(), key=lambda x: x[1], reverse=True)[:3]]
+            
+            hdr1_comp = ["Medical records Reporting Year"] + years + ["Total"]
+            hdr2_comp = ["Medical records DIABETES SPECIFIC\nCOMPLICATIONS"] + ["Medical records\nTOTAL $"] * len(years) + ["Medical records\nTOTAL $"]
+            t_data_comp = [hdr1_comp, hdr2_comp]
+            
+            for comp in top3_comps:
+                row = [comp]
+                grand = 0.0
+                for y in years:
+                    r = lookup.get((comp, y), {})
+                    v = float(r.get("TOTAL_AMT") or 0)
+                    grand += v
+                    row.append(f"${v:,.0f}" if r and v else "")
+                row.append(f"${grand:,.0f}")
+                t_data_comp.append(row)
+                
+            ncols = len(hdr1_comp)
+            cat_w = 2.8 * inch
+            col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
+            t_comp = Table(t_data_comp, colWidths=col_w, repeatRows=2)
+            t_comp.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
+                ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+                ("ALIGN",         (1, 0), (-1, -1), "RIGHT"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+                ("TEXTCOLOR",     (0, 2), (-1, -1), rl_colors.grey),
+            ]))
+            story.append(t_comp)
+            story.append(Spacer(1, 0.2*inch))
+
+        kf2_post = (
+            "Diabetes-specific complications are associated with uncontrolled diabetes and sometimes with "
+            "undiagnosed diabetes. For example, a diagnosis of Idiopathic Neuropathy means \"of no known cause\"; "
+            "however, it is often associated with an undiagnosed case of diabetes. Wellness programming that "
+            "includes biometric screenings would identify individuals with undiagnosed diabetes.<br/><br/>"
+            "An analysis was conducted to determine the number of individuals with diabetes who were compliant "
+            "with evidence-based guidelines for diabetes. The analysis revealed that there were a large number of "
+            "individuals with a diagnosis of diabetes who are non-compliant to evidence-based medications related "
+            "to diabetes management. Systems are available that can mail specific clinical \"to dos\" to each member's "
+            "home and monitor on-going compliance to these directions; this strategy also impacts the spouse and "
+            "dependent children."
+        )
+        story.append(PageBreak())
+        
+        story.append(Paragraph(kf2_post, self.S["Body"]))
+        story.append(Spacer(1, 0.2*inch))
+
+        rec_sol_kf2 = "<b>Recommended Solution:</b> Establish evidence-based medicine guidelines (i.e., HEDIS goals) for the population that relate to diabetes management:"
+        story.append(Paragraph(rec_sol_kf2, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        db_bullets = [
+            "Hemoglobin A1c (HbA1c) testing",
+            "Hemoglobin A1c control (<7.0%)",
+            "Retinal eye exam performed",
+            "Screening for neuropathy",
+            "Blood Pressure control (<130/80 mm/Hg)",
+            "Medical attention for nephropathy"
+        ]
+        for b in db_bullets:
+            story.append(Paragraph(f"<bullet>&bull;</bullet>{b}", bullet_style))
+            
+        story.append(Spacer(1, 0.2*inch))
+
+        # Key Finding 3: Preventive Screenings
+        story.append(Paragraph("<b>Key Finding 3: Preventive Screenings</b>", self.S["SubHead"]))
+        story.append(Spacer(1, 0.1*inch))
+        kf3_text = "<b>Key Finding:</b><br/><br/>Preventive screenings for breast cancer, cervical cancer, and colorectal cancer were well below HEDIS National Guidelines. NCQA reports the following national screening rates:"
+        story.append(Paragraph(kf3_text, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        scr_bullets = [
+            "Breast Cancer Screening: Commercial HMO screening rate at 73.7% and Commercial PPO at 71.6%",
+            "Cervical Cancer Screening: Commercial HMO screening rate at 76.2% and Commercial PPO at 74.2%",
+            "Colorectal Cancer Screening: Commercial HMO screening rate at 65.0% and Commercial PPO at 61.8%"
+        ]
+        for b in scr_bullets:
+            story.append(Paragraph(f"<bullet>&bull;</bullet>{b}", bullet_style))
+            
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph("Actual screening rates for the population across years were as follows:", self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        cd_screen = charts.get("preventive_screening")
+        if cd_screen and cd_screen.data:
+            years = sorted({str(r.get("YEAR", "")) for r in cd_screen.data})
+            lookup: Dict[tuple, dict] = {}
+            for r in cd_screen.data:
+                lookup[(str(r.get("CANCER_SCREENING", "")), str(r.get("YEAR", "")))] = r
+                
+            hdr_scr = ["EBR Measures Year", "EBR Measures Breast Cancer\nScreening Rate", "EBR Measures Cervical Cancer\nScreening Rate", "EBR Measures Colon Cancer\nScreening Rate"]
+            t_data_scr = [hdr_scr]
+            
+            for y in years:
+                br_r = lookup.get(("BREAST CANCER", y), {})
+                cv_r = lookup.get(("CERVICAL CANCER", y), {})
+                cl_r = lookup.get(("COLON CANCER", y), {})
+                
+                br_val = f"{float(br_r.get('SCREENING_RATE_PCT') or 0):.1f}%" if br_r else ""
+                cv_val = f"{float(cv_r.get('SCREENING_RATE_PCT') or 0):.1f}%" if cv_r else ""
+                cl_val = f"{float(cl_r.get('SCREENING_RATE_PCT') or 0):.1f}%" if cl_r else ""
+                
+                t_data_scr.append([y, br_val, cv_val, cl_val])
+                
+            t_scr = Table(t_data_scr, colWidths=[1.5*inch, 2.0*inch, 2.0*inch, 1.8*inch])
+            t_scr.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, 0), "#d5c9c1"),
+                ("TEXTCOLOR",     (0, 0), (-1, 0), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("ALIGN",         (0, 0), (-1, -1), "RIGHT"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+                ("TEXTCOLOR",     (0, 1), (-1, -1), rl_colors.grey),
+            ]))
+            story.append(t_scr)
+            story.append(Spacer(1, 0.2*inch))
+
+        rec_sol_kf3 = (
+            "<b>Recommended Solution:</b> Increase the awareness of age/gender-specific preventive screenings "
+            "within the population. Education in combination with various incentives would increase the "
+            "population's compliance with preventive screenings. Increased compliance to preventive screenings "
+            "would identify diseases in the early stage, thus improving treatment outcomes and decreasing "
+            "future expenditures.<br/><br/>"
+            "Establish at least five HEDIS (Healthcare Effectiveness and Information Set) goals for the "
+            "population. HEDIS is one of the most widely recognized healthcare performance measures in the "
+            "United States. Suggested goals are as follows:"
+        )
+        story.append(Paragraph(rec_sol_kf3, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        goals = [
+            ("<b>Goal 1:</b> Increase the number of individuals between the ages of 18 to 75 who have a diagnosis of diabetes and are compliant with the following evidence-based medicine guidelines:", [
+                "Hemoglobin A1c (HbA1c) testing",
+                "HbA1c poor control (>9.0%)",
+                "HbA1c control (<8.0%)",
+                "HbA1c control (<7.0%) for a selected population",
+                "Eye exam (retinal) performed",
+                "LDL-C screening",
+                "LDL-C control (<100 mg/dl)",
+                "Medical attention for nephropathy",
+                "BP control (<130/80 mm Hg)"
+            ]),
+            ("<b>Goal 2:</b> Increase the number of individuals between the ages of 18 to 74 who had an outpatient visit and had their body mass index (BMI) documented.", []),
+            ("<b>Goal 3:</b> Increase the percentage of women between the ages of 40 to 69 who had a mammogram to screen for breast cancer.", []),
+            ("<b>Goal 4:</b> Increase the percentage of women between the ages of 21 to 64 who received one or more Pap tests to screen for cervical cancer.", []),
+            ("<b>Goal 5:</b> Increase the percentage of individuals between the ages of 50 to 75 who had an appropriate screening for colorectal cancer.", [])
+        ]
+        
+        for g_title, g_bullets in goals:
+            if "Goal 2:" in g_title:
+                story.append(PageBreak())
+            story.append(Paragraph(g_title, self.S["Body"]))
+            if g_bullets:
+                story.append(Spacer(1, 0.05*inch))
+                for b in g_bullets:
+                    story.append(Paragraph(f"<bullet>&bull;</bullet>{b}", bullet_style))
+            story.append(Spacer(1, 0.1*inch))
+
+        # Key Finding 4: Musculoskeletal Diagnosis
+        story.append(Paragraph("<b>Key Finding 4: Musculoskeletal Diagnosis</b>", self.S["SubHead"]))
+        story.append(Spacer(1, 0.1*inch))
+        kf4_text = "<b>Key Finding:</b> It is our experience that; expenditures for Musculoskeletal-related diagnosis category are among the highest in any given population. The chart below shows the relative position of Musculoskeletal as a Disease category among Top 10 Diagnostic categories by Total Expenditure."
+        story.append(Paragraph(kf4_text, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+
+        cd_diag = charts.get("diag_category")
+        if cd_diag and cd_diag.data:
+            years = sorted({str(r.get("YR", "")) for r in cd_diag.data})
+            lookup: Dict[tuple, dict] = {}
+            cat_totals: Dict[str, float] = {}
+            for r in cd_diag.data:
+                c = str(r.get("CATEGORY", ""))
+                cat_totals[c] = cat_totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
+                lookup[(c, str(r.get("YR", "")))] = r
+            
+            top10_cats = [k for k, _ in sorted(cat_totals.items(), key=lambda x: x[1], reverse=True)[:10]]
+            
+            hdr1_diag = ["Medical records Reporting Year"] + [y for y in years for _ in range(2)]
+            hdr2_diag = ["Medical records DIAGNOSTIC CATEGORY"] + ["Medical\nrecords\nTOTAL $", "Medical\nrecords N"] * len(years)
+            t_data_diag = [hdr1_diag, hdr2_diag]
+            
+            for cat in top10_cats:
+                row = [cat]
+                for y in years:
+                    r = lookup.get((cat, y), {})
+                    amt = float(r.get("TOTAL_AMT") or 0) if r else 0
+                    n = int(r.get("N") or 0) if r else 0
+                    row += [f"${amt:,.0f}" if (r and amt) else "", str(n) if (r and n) else ""]
+                t_data_diag.append(row)
+                
+            ncols = len(hdr1_diag)
+            cat_w = 3.5 * inch
+            col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
+            t_diag = Table(t_data_diag, colWidths=col_w, repeatRows=2)
+            
+            style = [
+                ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
+                ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+                ("ALIGN",         (1, 0), (-1, -1), "RIGHT"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+                ("TEXTCOLOR",     (0, 2), (-1, -1), rl_colors.grey),
+            ]
+            for i, _ in enumerate(years):
+                c = 1 + i * 2
+                style.append(("SPAN", (c, 0), (c + 1, 0)))
+            t_diag.setStyle(TableStyle(style))
+            story.append(t_diag)
+            story.append(Spacer(1, 0.2*inch))
+
+        kf4_post = "A further analysis was completed to investigate which Musculoskeletal & Connective Tissue claims could potentially be work-related. Work-related musculoskeletal claims are usually associated with jobs or crafts that require manual material handling, frequent bending and twisting, static work posture, or whole body vibration. The results of this analysis were as follows (shown in chart below):"
+        story.append(Paragraph(kf4_post, self.S["Body"]))
+        story.append(Spacer(1, 0.1*inch))
+        
+        cd_msk = charts.get("msk_work")
+        if cd_msk and cd_msk.data:
+            years = sorted({str(r.get("YR", "")) for r in cd_msk.data})
+            lookup: Dict[tuple, dict] = {}
+            parts = []
+            seen = set()
+            for r in sorted(cd_msk.data, key=lambda x: -float(x.get("TOTAL_AMT") or 0)):
+                bp = str(r.get("BODY_PART", ""))
+                if bp and bp not in seen:
+                    parts.append(bp)
+                    seen.add(bp)
+                lookup[(bp, str(r.get("YR", "")))] = r
+            
+            # Slice to top 5 just to avoid a massive table spanning pages
+            top_parts = parts[:5]
+                
+            hdr1_msk = ["Medical records\nReporting Year"] + [y for y in years for _ in range(3)]
+            hdr2_msk = ["Medical records BODY PART"] + ["Medical\nrecords\nTOTAL $", "Medical\nrecords\nMEAN $", "Medical\nrecords N"] * len(years)
+            t_data_msk = [hdr1_msk, hdr2_msk]
+            for bp in top_parts:
+                row = [bp]
+                for y in years:
+                    r = lookup.get((bp, y), {})
+                    row += [
+                        f"${float(r.get('TOTAL_AMT') or 0):,.0f}" if r else "",
+                        f"${float(r.get('MEAN_AMT') or 0):,.0f}" if r else "",
+                        str(int(r.get("N") or 0)) if r else "",
+                    ]
+                t_data_msk.append(row)
+                
+            ncols = len(hdr1_msk)
+            bp_w = 2.0 * inch
+            col_w = [bp_w] + [(7.3 * inch - bp_w) / (ncols - 1)] * (ncols - 1)
+            t_msk = Table(t_data_msk, colWidths=col_w, repeatRows=2)
+            style = [
+                ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
+                ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, 1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("ALIGN",         (0, 0), (-1, -1), "LEFT"),
+                ("ALIGN",         (1, 0), (-1, -1), "RIGHT"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+                ("TEXTCOLOR",     (0, 2), (-1, -1), rl_colors.grey),
+            ]
+            for i, _ in enumerate(years):
+                c = 1 + i * 3
+                style.append(("SPAN", (c, 0), (c + 2, 0)))
+            t_msk.setStyle(TableStyle(style))
+            story.append(t_msk)
+            story.append(Spacer(1, 0.2*inch))
+        else:
+            years = ["2022", "2023", "2024"]
+            t_data_msk = [["Medical records\nReporting Year"] + years]
+            t_msk = Table(t_data_msk, colWidths=[1.5*inch, 2.0*inch, 2.0*inch, 1.8*inch])
+            t_msk.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, -1), LTBLUE),
+                ("TEXTCOLOR",     (0, 0), (-1, -1), rl_colors.grey),
+                ("FONTNAME",      (0, 0), (-1, -1), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, -1), 8),
+                ("GRID",          (0, 0), (-1, -1), 0.4, rl_colors.grey),
+            ]))
+            story.append(t_msk)
+            
         story.append(PageBreak())
 
     def _pivot_risk_data(self, rows) -> Table:
@@ -503,8 +988,8 @@ class PDFReportGenerator:
             lookup[(str(r["RISK_GROUP"]), str(r["FILE_YEAR"]))] = r
 
         # Header rows
-        header1 = ["Risk Group"] + [y for y in years for _ in range(3)]
-        header2 = [""] + ["Total $", "Mean $", "N"] * len(years)
+        header1 = ["Risk Group\nSummary\nFile Year"] + [y for y in years for _ in range(3)]
+        header2 = ["Risk Group\nSummary\nRisk Group"] + ["Risk\nGroup\nSummary\nTotal $", "Risk\nGroup\nSummary\nMean $", "Risk\nGroup\nSummary\nN"] * len(years)
         data = [header1, header2]
         for g in groups:
             row = [g]
@@ -521,13 +1006,14 @@ class PDFReportGenerator:
         col_w = [1.1*inch] + [0.87*inch]*(ncols-1)
         t = Table(data, colWidths=col_w, repeatRows=2)
         style = [
-            ("BACKGROUND",    (0,0), (-1,1), NAVY),
-            ("TEXTCOLOR",     (0,0), (-1,1), WHITE),
+            ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
+            ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
             ("FONTNAME",      (0,0), (-1,1), "Helvetica-Bold"),
             ("FONTSIZE",      (0,0), (-1,-1), 7),
-            ("ALIGN",         (0,0), (-1,-1), "CENTER"),
+            ("ALIGN",         (0,0), (-1,-1), "LEFT"),
+            ("ALIGN",         (1,0), (-1,-1), "RIGHT"),
             ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
-            ("ROWBACKGROUNDS",(0,2), (-1,-1), [WHITE, LTGREY]),
+            ("TEXTCOLOR",     (0,2), (-1,-1), rl_colors.grey),
             ("TOPPADDING",    (0,0), (-1,-1), 4),
             ("BOTTOMPADDING", (0,0), (-1,-1), 4),
         ]
