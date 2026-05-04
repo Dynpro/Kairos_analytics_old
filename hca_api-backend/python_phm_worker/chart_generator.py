@@ -660,7 +660,9 @@ class PDFReportGenerator:
         return None
 
     def _section_2_demographics(self, story, charts):
-        story.append(self._section_header_table("2. Demographic Information (Age and Gender)"))
+        hdr = self._section_header_table("2. Demographic Information (Age and Gender)")
+        hdr._toc_entry = "2. Demographic Information (Age and Gender)"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
 
         # Chart 1: Mean Age and N by Relationship per Year
@@ -817,7 +819,9 @@ class PDFReportGenerator:
                 story.append(RLImage(img4, width=7.0*inch, height=3.5*inch))
                 story.append(Spacer(1, 0.2*inch))
     def _section_3_medical_by_year(self, story, charts):
-        story.append(self._section_header_table("3. Overall Medical Expenditures by Year"))
+        hdr = self._section_header_table("3. Overall Medical Expenditures by Year")
+        hdr._toc_entry = "3. Overall Medical Expenditures by Year"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph("Medical expenditures* (based on paid claims) were as follows:", self.S["Body"]))
         story.append(Spacer(1, 0.1*inch))
@@ -909,7 +913,9 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 0.2*inch))
 
     def _section_4_medical_by_quarter(self, story, charts):
-        story.append(self._section_header_table("4. Overall Medical Expenditures by Quarter"))
+        hdr = self._section_header_table("4. Overall Medical Expenditures by Quarter")
+        hdr._toc_entry = "4. Overall Medical Expenditures by Quarter"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph("Medical expenditures were as follows:", self.S["Body"]))
         story.append(Spacer(1, 0.2*inch))
@@ -966,7 +972,9 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 0.2*inch))
 
     def _section_5_employee_expenditures(self, story, charts):
-        story.append(self._section_header_table("5. Employee/ Spouse/ Dependent Expenditures"))
+        hdr = self._section_header_table("5. Employee/ Spouse/ Dependent Expenditures")
+        hdr._toc_entry = "5. Employee/ Spouse/ Dependent Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph("Medical expenditures related to Employees, Spouses, and Dependents were as follows:", self.S["Body"]))
         story.append(Spacer(1, 0.1*inch))
@@ -1053,7 +1061,9 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 0.2*inch))
 
     def _section_6_gender_expenditures(self, story, charts):
-        story.append(self._section_header_table("6. Gender Related Expenditures"))
+        hdr = self._section_header_table("6. Gender Related Expenditures")
+        hdr._toc_entry = "6. Gender Related Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph("Medical expenditures related to Males and Females were as follows:", self.S["Body"]))
         story.append(Spacer(1, 0.1*inch))
@@ -1136,7 +1146,9 @@ class PDFReportGenerator:
     # ── Section 7: Diagnostic Category Expenditures ──────────────────────────
 
     def _section_7_diagnostic_categories(self, story, charts):
-        story.append(self._section_header_table("7. Diagnostic Category Expenditures"))
+        hdr = self._section_header_table("7. Diagnostic Category Expenditures")
+        hdr._toc_entry = "7. Diagnostic Category Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Diagnostic categories* ranked by expense were as follows:",
@@ -1297,7 +1309,9 @@ class PDFReportGenerator:
     # ── Section 8: Chronic Disease Expenditures ──────────────────────────────
 
     def _section_8_chronic_diseases(self, story, charts):
-        story.append(self._section_header_table("8. Chronic Disease Expenditures"))
+        hdr = self._section_header_table("8. Chronic Disease Expenditures")
+        hdr._toc_entry = "8. Chronic Disease Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Chronic diseases* ranked by expense were as follows:",
@@ -1454,8 +1468,9 @@ class PDFReportGenerator:
     # ── Section 9: Diabetes Expenditures & Related Risk Stratification ───────
 
     def _section_9_diabetes_expenditures(self, story, charts):
-        story.append(self._section_header_table(
-            "9. Diabetes Expenditures & Related Risk Stratification"))
+        hdr = self._section_header_table("9. Diabetes Expenditures & Related Risk Stratification")
+        hdr._toc_entry = "9. Diabetes Expenditures & Related Risk Stratification"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Diabetes expensive complications* ranked by expense were as follows:",
@@ -1622,8 +1637,9 @@ class PDFReportGenerator:
     # ── Section 10: Diabetes Non-Compliance to Evidence-Based Medicine ────────
 
     def _section_10_diabetes_ebm(self, story, charts):
-        story.append(self._section_header_table(
-            "10. Diabetes Non-Compliance to Evidence-Based Medicine"))
+        hdr = self._section_header_table("10. Diabetes Non-Compliance to Evidence-Based Medicine")
+        hdr._toc_entry = "10. Diabetes Non-Compliance to Evidence-Based Medicine"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following data identifies the number of individuals who had a diagnosis of "
@@ -1795,7 +1811,9 @@ class PDFReportGenerator:
     # ── Section 11: Disease Group Risk Stratification ─────────────────────────
 
     def _section_11_risk_groups(self, story, charts):
-        story.append(self._section_header_table("11. Disease Group Risk Stratification"))
+        hdr = self._section_header_table("11. Disease Group Risk Stratification")
+        hdr._toc_entry = "11. Disease Group Risk Stratification"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The population was stratified into seven disease-risk groups based on their "
@@ -1864,8 +1882,10 @@ class PDFReportGenerator:
     # ── Section 12: Lifestyle Modifiable & Preventive Utilization ─────────────
 
     def _section_12_lifestyle(self, story, charts):
-        story.append(self._section_header_table(
-            "12. Expenditures Related to Lifestyle Modifiable & Preventive Utilization"))
+        hdr = self._section_header_table(
+            "12. Expenditures Related to Lifestyle Modifiable & Preventive Utilization")
+        hdr._toc_entry = "12. Expenditures Related to Lifestyle Modifiable & Preventive Utilization"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies expenditures related to lifestyle-modifiable "
@@ -1973,8 +1993,9 @@ class PDFReportGenerator:
     # ── Section 13: Estimated Lost Time & Cost due to Health Disparities ──────
 
     def _section_13_health_disparities(self, story, charts):
-        story.append(self._section_header_table(
-            "13. Estimated Lost Time & Cost due to Health Disparities"))
+        hdr = self._section_header_table("13. Estimated Lost Time & Cost due to Health Disparities")
+        hdr._toc_entry = "13. Estimated Lost Time & Cost due to Health Disparities"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section estimates productivity loss associated with high-frequency "
@@ -2055,7 +2076,9 @@ class PDFReportGenerator:
     # ── Section 14: Preventive Screening Compliance ───────────────────────────
 
     def _section_14_preventive_screening(self, story, charts):
-        story.append(self._section_header_table("14. Preventive Screening Compliance"))
+        hdr = self._section_header_table("14. Preventive Screening Compliance")
+        hdr._toc_entry = "14. Preventive Screening Compliance"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies preventive cancer screening compliance rates "
@@ -2150,7 +2173,9 @@ class PDFReportGenerator:
     # ── Section 15: Value of Preventive Screenings ────────────────────────────
 
     def _section_15_screening_value(self, story, charts):
-        story.append(self._section_header_table("15. Value of Preventive Screenings"))
+        hdr = self._section_header_table("15. Value of Preventive Screenings")
+        hdr._toc_entry = "15. Value of Preventive Screenings"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies the value of preventive screenings by "
@@ -2222,8 +2247,10 @@ class PDFReportGenerator:
     # ── Section 16: Work-Related Musculoskeletal Expenditures ─────────────────
 
     def _section_16_musculoskeletal(self, story, charts):
-        story.append(self._section_header_table(
-            "16. Potentially Work-Related Musculoskeletal Expenditures"))
+        hdr = self._section_header_table(
+            "16. Potentially Work-Related Musculoskeletal Expenditures")
+        hdr._toc_entry = "16. Potentially Work-Related Musculoskeletal Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies musculoskeletal expenditures that may be "
@@ -2331,7 +2358,9 @@ class PDFReportGenerator:
     # ── Section 17: Catastrophic Claims ──────────────────────────────────────
 
     def _section_17_catastrophic(self, story, charts):
-        story.append(self._section_header_table("17. Catastrophic Claims"))
+        hdr = self._section_header_table("17. Catastrophic Claims")
+        hdr._toc_entry = "17. Catastrophic Claims"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Catastrophic claims are defined as individual claims exceeding $100,000. "
@@ -2402,8 +2431,9 @@ class PDFReportGenerator:
     # ── Section 18: Inpatient / Outpatient / ER Expenditures ─────────────────
 
     def _section_18_inpatient_er(self, story, charts):
-        story.append(self._section_header_table(
-            "18. Inpatient, Outpatient & Emergency Room Expenditures"))
+        hdr = self._section_header_table("18. Inpatient, Outpatient & Emergency Room Expenditures")
+        hdr._toc_entry = "18. Inpatient, Outpatient & Emergency Room Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies expenditures related to Inpatient, "
@@ -2506,7 +2536,9 @@ class PDFReportGenerator:
     # ── Section 19: Avoidable Emergency Room Visits ───────────────────────────
 
     def _section_19_avoidable_er(self, story, charts):
-        story.append(self._section_header_table("19. Avoidable Emergency Room Visits"))
+        hdr = self._section_header_table("19. Avoidable Emergency Room Visits")
+        hdr._toc_entry = "19. Avoidable Emergency Room Visits"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Avoidable ER visits are defined as emergency room encounters for conditions "
@@ -2606,8 +2638,9 @@ class PDFReportGenerator:
     # ── Section 20: Primary Care Physician & Specialty Expenditures ───────────
 
     def _section_20_pcp_specialty(self, story, charts):
-        story.append(self._section_header_table(
-            "20. Primary Care Physician & Specialty Expenditures"))
+        hdr = self._section_header_table("20. Primary Care Physician & Specialty Expenditures")
+        hdr._toc_entry = "20. Primary Care Physician & Specialty Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies expenditures related to Primary Care Physician "
@@ -2709,7 +2742,9 @@ class PDFReportGenerator:
     # ── Section 21: Overall Pharmacy Expenditures by Year ────────────────────
 
     def _section_21_pharmacy_by_year(self, story, charts):
-        story.append(self._section_header_table("21. Overall Pharmacy Expenditures by Year"))
+        hdr = self._section_header_table("21. Overall Pharmacy Expenditures by Year")
+        hdr._toc_entry = "21. Overall Pharmacy Expenditures by Year"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Pharmacy expenditures* (based on paid claims) were as follows:",
@@ -2815,7 +2850,9 @@ class PDFReportGenerator:
     # ── Section 22: Overall Pharmacy Expenditures by Quarter ─────────────────
 
     def _section_22_pharmacy_by_quarter(self, story, charts):
-        story.append(self._section_header_table("22. Overall Pharmacy Expenditures by Quarter"))
+        hdr = self._section_header_table("22. Overall Pharmacy Expenditures by Quarter")
+        hdr._toc_entry = "22. Overall Pharmacy Expenditures by Quarter"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph("Pharmacy expenditures were as follows:", self.S["Body"]))
         story.append(Spacer(1, 0.2*inch))
@@ -2881,8 +2918,9 @@ class PDFReportGenerator:
     # ── Section 23: Employee/Spouse/Dependent Pharmacy Expenditures ───────────
 
     def _section_23_pharmacy_relationship(self, story, charts):
-        story.append(self._section_header_table(
-            "23. Employee/ Spouse/ Dependent Pharmacy Expenditures"))
+        hdr = self._section_header_table("23. Employee/ Spouse/ Dependent Pharmacy Expenditures")
+        hdr._toc_entry = "23. Employee/ Spouse/ Dependent Pharmacy Expenditures"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Pharmacy expenditures related to Employees, Spouses, and Dependents were as follows:",
@@ -2982,7 +3020,9 @@ class PDFReportGenerator:
     # ── Section 24: Medication Compliance (MPR) ───────────────────────────────
 
     def _section_24_medication_mpr(self, story, charts):
-        story.append(self._section_header_table("24. Medication Compliance"))
+        hdr = self._section_header_table("24. Medication Compliance")
+        hdr._toc_entry = "24. Medication Compliance"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "Medication Possession Ratio (MPR) is a commonly used measure of medication "
@@ -3068,7 +3108,9 @@ class PDFReportGenerator:
     # ── Section 25: Brand vs. Generic Medication Usage ────────────────────────
 
     def _section_25_brand_generic(self, story, charts):
-        story.append(self._section_header_table("25. Brand vs. Generic Medication Usage"))
+        hdr = self._section_header_table("25. Brand vs. Generic Medication Usage")
+        hdr._toc_entry = "25. Brand vs. Generic Medication Usage"
+        story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
             "The following section identifies the utilization of Brand versus Generic "
