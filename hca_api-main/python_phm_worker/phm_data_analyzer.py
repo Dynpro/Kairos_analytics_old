@@ -17,7 +17,7 @@ class PHMReportConfig:
     pharmacy_date_col: str = "DATE_FILLED"
     medical_amount_col: str = "TOTAL_EMPLOYER_PAID_AMT"
     pharmacy_amount_col: str = "TOTAL_EMPLOYER_PAID_AMT"
-    member_col: str = "UNIQUE_ID"
+    member_col: str = "MEMBER_ID"
     medical_gender_col: str = "PATIENT_GENDER"
     pharmacy_gender_col: str = "EMPLOYEE_GENDER"
     medical_rel_col: str = "RELATIONSHIP_TO_EMPLOYEE"
@@ -390,26 +390,16 @@ class PHMDataAnalyzer:
         )
 
     def analyze_diabetes_complications(self) -> Optional[ChartData]:
-        """Section 9 top table: Diabetes-specific complication categories by year (total $, N).
-
-        Uses COMPLICATION_TO from LKR_TAB_MEDICAL for diabetic members identified
-        via the risk-group view.
-        """
-        dc = self.config.medical_date_col
+        """Section 9 top table: Diabetes-specific complication categories by year (total $, N)."""
         sql = f"""
-            SELECT YEAR({dc}) AS file_year,
-                   COMPLICATION_TO AS complication,
-                   SUM({self.config.medical_amount_col}) AS total_amt,
-                   COUNT(DISTINCT m.UNIQUE_ID) AS n
-            FROM {self.config.schema}.LKR_TAB_MEDICAL m
-            WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND m.UNIQUE_ID IN (
-                  SELECT DISTINCT UNIQUE_ID
-                  FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
-                  WHERE FILE_YEAR IN {self._get_years_clause()}
-                    AND CHRONIC_CAT LIKE '%DIABETES%'
-              )
-              AND COMPLICATION_TO IS NOT NULL
+            SELECT FILE_YEAR,
+                   DIABETES_COMPLICATION_CATEGORY AS complication,
+                   SUM(CHRONIC_PAID_AMT) AS total_amt,
+                   COUNT(DISTINCT UNIQUE_ID) AS n
+            FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
+            WHERE FILE_YEAR IN {self._get_years_clause()}
+              AND CHRONIC_CAT LIKE '%DIABETES%'
+              AND DIABETES_COMPLICATION_CATEGORY IS NOT NULL
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
@@ -879,8 +869,9 @@ class PHMDataAnalyzer:
         sql = f"""
             SELECT YEAR,
                    CANCER_SCREENING,
-                   COUNT(DISTINCT CASE WHEN DIAGNOSIS_DATE_MAX IS NOT NULL THEN UNIQUE_ID END) AS diagnosed_n,
-                   COUNT(DISTINCT UNIQUE_ID) AS eligible_n
+                   COUNT(DISTINCT CASE WHEN CANCER_DIAGNOSIS_DATE IS NOT NULL THEN UNIQUE_ID END) AS diagnosed_n,
+                   COUNT(DISTINCT UNIQUE_ID) AS eligible_n,
+                   SUM(CASE WHEN CANCER_DIAGNOSIS_DATE IS NOT NULL THEN COALESCE(CANCER_TREATMENT_COST, 0) ELSE 0 END) AS treatment_cost
             FROM {self.config.schema}.VW_PREVENTIVE_SCREENING
             WHERE YEAR IN {self._get_years_clause()}
             GROUP BY 1,2 ORDER BY 1,2
@@ -898,21 +889,22 @@ class PHMDataAnalyzer:
     # ── Section 16: Work-Related Musculoskeletal Expenditures ─────────────────
 
     def analyze_musculoskeletal_work(self) -> Optional[ChartData]:
-        """Potentially work-related MSK claims (body-part buckets) by year.
-
-        Uses MSK_BODY_PARTS from LKR_TAB_MEDICAL which has enriched MSK data.
-        """
+        """Potentially work-related MSK claims (body-part buckets) by year."""
         dc = self.config.medical_date_col
+        MSK_BODY_PARTS = (
+            "'BACK','NECK','SHOULDER','HAND','WRIST','KNEE','HIP',"
+            "'FOOT','ANKLE','UPPER EXTREMITY','LOWER EXTREMITY','SPINE'"
+        )
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   COALESCE(MSK_BODY_PARTS, 'OTHER') AS body_part,
+                   COALESCE(BODY_PART_DESCRIPTION, 'OTHER') AS body_part,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
-                   COUNT(DISTINCT UNIQUE_ID) AS n
-            FROM {self.config.schema}.LKR_TAB_MEDICAL
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND TRUE_MSK_FLAG = TRUE
-              AND MSK_BODY_PARTS IS NOT NULL
+              AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
+              AND BODY_PART_DESCRIPTION IS NOT NULL
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
@@ -923,10 +915,10 @@ class PHMDataAnalyzer:
                        'MUSCULOSKELETAL' AS body_part,
                        SUM({self.config.medical_amount_col}) AS total_amt,
                        AVG({self.config.medical_amount_col}) AS mean_amt,
-                       COUNT(DISTINCT UNIQUE_ID) AS n
-                FROM {self.config.schema}.LKR_TAB_MEDICAL
+                       COUNT(DISTINCT {self.config.member_col}) AS n
+                FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
                 WHERE YEAR({dc}) IN {self._get_years_clause()}
-                  AND TRUE_MSK_FLAG = TRUE
+                  AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
                 GROUP BY 1,2 ORDER BY 1
             """
             rows = self.snowflake.query(sql2)
@@ -979,22 +971,28 @@ class PHMDataAnalyzer:
     # ── Section 19: Avoidable ER Visits ──────────────────────────────────────
 
     def analyze_avoidable_er(self) -> Optional[ChartData]:
-        """ER visits for conditions treatable in primary care.
-
-        Uses the ICD_AVOIDABLE_ER boolean flag from LKR_TAB_MEDICAL which has
-        pre-classified avoidable ER conditions.
-        """
+        """ER visits for conditions treatable in primary care (AHRQ avoidable ER ICD codes)."""
         dc = self.config.medical_date_col
+        # AHRQ-defined ambulatory-care-sensitive ICD-10 diagnosis prefixes
+        AVOIDABLE_ICD_PREFIXES = (
+            "'J06','J20','J45','J22','N39','K59','K57','K21','H66','J32',"
+            "'N390','L03','R51','F41','G43'"
+        )
+        pos_col = self.config.pos_col
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   COALESCE(ICD_DISEASE_CATEGORY, PRIMARY_DIAGNOSIS_CODE) AS diagnosis,
+                   COALESCE(PRIMARY_DIAGNOSIS_DESC, PRIMARY_DIAGNOSIS_CODE) AS diagnosis,
                    PRIMARY_DIAGNOSIS_CODE AS icd_code,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
-                   COUNT(DISTINCT UNIQUE_ID) AS n
-            FROM {self.config.schema}.LKR_TAB_MEDICAL
+                   COUNT(DISTINCT {self.config.member_col}) AS n
+            FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND ICD_AVOIDABLE_ER = TRUE
+              AND UPPER({pos_col}) LIKE '%EMERGENCY%'
+              AND (
+                    LEFT(UPPER(TRIM(PRIMARY_DIAGNOSIS_CODE)), 3) IN ({AVOIDABLE_ICD_PREFIXES})
+                 OR LEFT(UPPER(TRIM(PRIMARY_DIAGNOSIS_CODE)), 4) IN ({AVOIDABLE_ICD_PREFIXES})
+              )
             GROUP BY 1,2,3 ORDER BY 1, 4 DESC
         """
         rows = self.snowflake.query(sql)

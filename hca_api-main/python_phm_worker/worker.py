@@ -198,21 +198,16 @@ class PHMWorker:
         
         try:
             # Step 1: Connect to Snowflake and analyze data
-            self._update_report_status(report_id, 1)  # Building Chart Links
             charts = self._generate_phm_charts_from_snowflake(report)
             if not charts:
                 self.logger.error(f"Failed to generate charts for report {report_id}")
                 self._update_report_status(report_id, 7)  # Failed
                 return False
             
-            self._update_report_status(report_id, 2)  # Chart Links Ready
-            
             # Step 2: Generate chart images
-            self._update_report_status(report_id, 3)  # Generating Charts
             chart_files = self._generate_chart_images(report_id, charts)
             
             # Step 3: Generate PDF report
-            self._update_report_status(report_id, 4)  # Generating PDF
             pdf_path = self._generate_pdf_report(report_id, report, chart_files, charts)
             if not pdf_path:
                 self.logger.error(f"Failed to generate PDF for report {report_id}")
@@ -220,7 +215,6 @@ class PHMWorker:
                 return False
             
             # Step 3.5: Upload to S3
-            self._update_report_status(report_id, 5)  # Uploading / Complete in progress
             report_name = report.get("name", f"PHM_Report_{report_id}")
             s3_path = self._upload_to_s3(pdf_path, report_name)
             final_path = s3_path if s3_path else pdf_path
