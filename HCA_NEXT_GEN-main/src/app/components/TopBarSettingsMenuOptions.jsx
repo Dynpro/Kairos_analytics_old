@@ -74,7 +74,7 @@
 //       group: types.settingsType,
 //     }, 
 //   generate_reports: {
-//     name: 'Generate Reports',
+//     name: 'PHM Reports',
 //     path: '/splitGenerateReports',
 //     icon: 'description',
 //     level: 1,
@@ -324,7 +324,7 @@ const settingOptions = {
       group: types.settingsType,
     }, 
   generate_reports: {
-    name: 'Generate Reports',
+    name: 'PHM Reports',
     path: '/splitGenerateReports',
     icon: 'description',
     level: 1,

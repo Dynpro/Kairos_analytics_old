@@ -1,5 +1,6 @@
 import {
   Box,
+  Chip,
   Icon,
   IconButton,
   styled,
@@ -8,6 +9,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Tooltip,
 } from '@mui/material';
 import commonConfig from 'app/components/commonConfig';
 import commonRoutes from 'app/components/commonRoutes';
@@ -20,14 +22,15 @@ import { useNavigate } from 'react-router-dom';
 import SnackbarUtils from 'SnackbarUtils';
 import AppConfirmationDialog from '../ReusableComponents/AppConfirmationDialog';
 import AppTableLinearProgress from '../ReusableComponents/AppTableLinearProgress';
+import AppReportStatusModal from './AppReportStatusModal';
 
 const StyledTable = styled(Table)(({ theme }) => ({
   whiteSpace: 'pre',
   '& thead': {
-    '& tr': { '& th': { paddingLeft: 0, paddingRight: 0 } },
+    '& tr': { '& th': { paddingLeft: 0, paddingRight: 0, color: '#e67e22', fontWeight: 600, fontSize: '0.8rem' } },
   },
   '& tbody': {
-    '& tr': { '& td': { paddingLeft: 0, textTransform: 'capitalize' } },
+    '& tr': { '& td': { paddingLeft: 0, textTransform: 'capitalize', fontSize: '0.82rem' } },
   },
 }));
 
@@ -35,17 +38,39 @@ const AppBox = styled(Box)(({ theme }) => ({
   color: theme.palette.text.secondary,
 }));
 
+const statusColor = (status) => {
+  switch (status) {
+    case 'done':
+      return 'success';
+    case 'failed':
+      return 'error';
+    case 'in progress':
+    case 'started':
+      return 'warning';
+    default:
+      return 'default';
+  }
+};
+
+const formatDateRange = (start, end) => {
+  if (!start && !end) return '—';
+  const s = start ? String(start).substring(0, 10) : '?';
+  const e = end ? String(end).substring(0, 10) : '?';
+  return `${s} → ${e}`;
+};
+
 const AppPaginateGenerateReports = ({ data = [], fetchData, onPageSet, page, loading }) => {
   const currentReport = useRef(null);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusModalReport, setStatusModalReport] = useState(null);
   const navigate = useNavigate();
   const handleChangePage = (_, newPage) => {
     onPageSet(newPage);
   };
 
-  const generateReportsDeletePermission = useSelector(
-    (state) => state.userAccessPermissions?.userPermissions?.generate_report_delete
-  );
+  const generateReportsCreatePermission = 1;
+  const generateReportsDeletePermission = 1;
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(+event.target.value);
@@ -113,15 +138,26 @@ const AppPaginateGenerateReports = ({ data = [], fetchData, onPageSet, page, loa
 
   const handleUserDelete = () => setShouldOpenConfirmationDialog(true);
 
+  const handleOpenStatusModal = (report) => {
+    setStatusModalReport(report);
+    setStatusModalOpen(true);
+  };
+
+  const handleCloseStatusModal = () => {
+    setStatusModalOpen(false);
+    setStatusModalReport(null);
+  };
+
   return (
     <AppBox width="100%" overflow="auto">
       <StyledTable>
         <TableHead>
           <TableRow>
-            <TableCell align="left">Name</TableCell>
+            <TableCell align="left">Report Name</TableCell>
             <TableCell align="left">Client Name</TableCell>
             <TableCell align="left">Reporting Year</TableCell>
-            <TableCell align="left">Year</TableCell>
+            <TableCell align="left">Medical Dates</TableCell>
+            <TableCell align="left">Pharmacy Dates</TableCell>
             <TableCell align="left">Frequency</TableCell>
             <TableCell align="left">Status</TableCell>
             <TableCell align="left">Action</TableCell>
@@ -130,37 +166,75 @@ const AppPaginateGenerateReports = ({ data = [], fetchData, onPageSet, page, loa
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell align="left" colSpan={7}>
+              <TableCell align="left" colSpan={8}>
                 <AppTableLinearProgress />
               </TableCell>
             </TableRow>
           ) : data.length === 0 ? (
-            <p>No Records found</p>
+            <TableRow>
+              <TableCell colSpan={8} align="center">
+                No Records found
+              </TableCell>
+            </TableRow>
           ) : (
             data.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((user, index) => (
               <TableRow key={index}>
                 <TableCell align="left">{user.name}</TableCell>
                 <TableCell align="left">{user.folder_name}</TableCell>
                 <TableCell align="left">{user.reporting_year}</TableCell>
-                <TableCell align="left">{user.year}</TableCell>
-                <TableCell align="left">{user.frequency}</TableCell>
-                <TableCell align="left">{user.looks_generated}</TableCell>
                 <TableCell align="left">
+                  {formatDateRange(user.medical_start_date, user.medical_end_date)}
+                </TableCell>
+                <TableCell align="left">
+                  {formatDateRange(user.pharmacy_start_date, user.pharmacy_end_date)}
+                </TableCell>
+                <TableCell align="left">{user.frequency}</TableCell>
+                <TableCell align="left">
+                  <Chip
+                    label={user.looks_generated}
+                    color={statusColor(user.looks_generated)}
+                    size="small"
+                    sx={{ fontWeight: 600, textTransform: 'capitalize', minWidth: 70 }}
+                  />
+                </TableCell>
+                <TableCell align="left">
+                  <Tooltip title="Report Info">
+                    <IconButton size="small" onClick={() => handleOpenStatusModal(user)}>
+                      <Icon sx={{ color: '#888' }}>info</Icon>
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Edit">
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        navigate(commonRoutes.generate_reports.generate_reportsEdit, {
+                          state: { reportData: user },
+                        })
+                      }
+                    >
+                      <Icon sx={{ color: '#888' }}>edit</Icon>
+                    </IconButton>
+                  </Tooltip>
                   {user.file_path?.includes('Generated_PHM/') &&
                     !(user.file_path === null || user.file_path === '') && (
-                      <IconButton onClick={() => handleDownload(user.file_path)}>
-                        <Icon color="primary">download</Icon>
-                      </IconButton>
+                      <Tooltip title="Download PDF">
+                        <IconButton size="small" onClick={() => handleDownload(user.file_path)}>
+                          <Icon color="primary">download</Icon>
+                        </IconButton>
+                      </Tooltip>
                     )}
                   {generateReportsDeletePermission === 1 && (
-                    <IconButton
-                      onClick={() => {
-                        handleUserDelete();
-                        currentReport.current = user;
-                      }}
-                    >
-                      <Icon color="error">delete</Icon>
-                    </IconButton>
+                    <Tooltip title="Delete">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          handleUserDelete();
+                          currentReport.current = user;
+                        }}
+                      >
+                        <Icon color="error">delete</Icon>
+                      </IconButton>
+                    </Tooltip>
                   )}
                 </TableCell>
               </TableRow>
@@ -183,6 +257,15 @@ const AppPaginateGenerateReports = ({ data = [], fetchData, onPageSet, page, loa
           open={shouldOpenConfirmationDialog}
           onConfirmDialogClose={handleDialogClose}
           onYesClick={() => handleConfirmationResponse(currentReport.current?.report_id)}
+        />
+      )}
+      {statusModalOpen && statusModalReport && (
+        <AppReportStatusModal
+          open={statusModalOpen}
+          report={statusModalReport}
+          onClose={handleCloseStatusModal}
+          onDownload={handleDownload}
+          fetchData={fetchData}
         />
       )}
     </AppBox>

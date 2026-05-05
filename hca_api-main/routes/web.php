@@ -131,6 +131,9 @@ $router->group(['prefix' => 'api'], function () use ($router) {
        $router->get('phm_automation_client_list', 'PHMAutomationController@client_list');
        $router->get('phm_automation_year_list', 'PHMAutomationController@year_list');
        $router->post('phm_automation_store', 'PHMAutomationController@store');
+       $router->get('phm_automation_show/{id}', 'PHMAutomationController@show_one');
+       $router->post('phm_automation_retry/{id}', 'PHMAutomationController@retry');
+       $router->put('phm_automation_update/{id}', 'PHMAutomationController@update');
        $router->delete('phm_automation_destroy/{id}', 'PHMAutomationController@destroy');
        $router->get('phm_automation_download', 'PHMAutomationController@download');
 
