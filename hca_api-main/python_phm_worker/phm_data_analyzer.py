@@ -285,16 +285,34 @@ class PHMDataAnalyzer:
 
     def analyze_diagnostic_categories(self) -> Optional[ChartData]:
         dc = self.config.medical_date_col
-        diag = self.config.diag_category_col
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   {diag} AS category,
+                   CASE
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'A'
+                       OR LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'B' THEN 'INFECTIOUS DISEASE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'C'
+                       OR (LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'D'
+                           AND LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) <= 'D49') THEN 'CANCER/NEOPLASM'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'E' THEN 'ENDOCRINE/METABOLIC'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'F' THEN 'MENTAL HEALTH'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'G' THEN 'NERVOUS SYSTEM'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'H' THEN 'EYE/EAR'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'I' THEN 'CARDIOVASCULAR'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'J' THEN 'RESPIRATORY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'K' THEN 'DIGESTIVE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'L' THEN 'SKIN'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'M' THEN 'MUSCULOSKELETAL'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'N' THEN 'GENITOURINARY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'O' THEN 'PREGNANCY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) IN ('S','T') THEN 'INJURY/TRAUMA'
+                     ELSE 'OTHER'
+                   END AS category,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
                    COUNT(DISTINCT {self.config.member_col}) AS n
             FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND {diag} IS NOT NULL
+              AND RECONCILED_DIAGNOSIS_CODE_ICD10 IS NOT NULL
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
@@ -838,21 +856,29 @@ class PHMDataAnalyzer:
     # ── Section 12: Lifestyle Modifiable & Preventive Utilization ────────────
 
     def analyze_lifestyle_modifiable(self) -> Optional[ChartData]:
-        """Lifestyle-modifiable diagnoses (obesity, tobacco, alcohol, sedentary) by year."""
+        """Lifestyle-modifiable diagnoses (obesity, tobacco, alcohol, mental health) by year via ICD-10."""
         dc = self.config.medical_date_col
-        LIFESTYLE_GROUPS = (
-            "'OBESITY','TOBACCO USE','ALCOHOL USE','SUBSTANCE ABUSE',"
-            "'SEDENTARY LIFESTYLE','STRESS/MENTAL HEALTH'"
-        )
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   {self.config.diag_category_col} AS category,
+                   CASE
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN ('E66','Z68') THEN 'OBESITY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN ('F17','Z87') THEN 'TOBACCO USE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN ('F10','Z71') THEN 'ALCOHOL USE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN ('F11','F12','F13','F14','F15','F16','F19') THEN 'SUBSTANCE ABUSE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN ('F32','F33','F41','F43','F44') THEN 'STRESS/MENTAL HEALTH'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN ('Z72') THEN 'SEDENTARY LIFESTYLE'
+                   END AS category,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
                    COUNT(DISTINCT {self.config.member_col}) AS n
             FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND UPPER({self.config.diag_category_col}) IN ({LIFESTYLE_GROUPS})
+              AND RECONCILED_DIAGNOSIS_CODE_ICD10 IS NOT NULL
+              AND LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),3) IN (
+                  'E66','Z68','F17','Z87','F10','Z71',
+                  'F11','F12','F13','F14','F15','F16','F19',
+                  'F32','F33','F41','F43','F44','Z72'
+              )
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
@@ -872,17 +898,29 @@ class PHMDataAnalyzer:
     # ── Section 13: Estimated Lost Time & Cost due to Health Disparities ──────
 
     def analyze_health_disparities(self) -> Optional[ChartData]:
-        """Lost-time / absenteeism proxy: diagnostic categories with high frequency but low cost."""
+        """Diagnostic categories by year derived from ICD-10 chapter prefixes."""
         dc = self.config.medical_date_col
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   {self.config.diag_category_col} AS category,
+                   CASE
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) IN ('A','B') THEN 'INFECTIOUS DISEASE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'C' THEN 'CANCER/NEOPLASM'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'E' THEN 'ENDOCRINE/METABOLIC'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'F' THEN 'MENTAL HEALTH'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'I' THEN 'CARDIOVASCULAR'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'J' THEN 'RESPIRATORY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'K' THEN 'DIGESTIVE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'M' THEN 'MUSCULOSKELETAL'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) = 'N' THEN 'GENITOURINARY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)),1) IN ('S','T') THEN 'INJURY/TRAUMA'
+                     ELSE 'OTHER'
+                   END AS category,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
                    COUNT(DISTINCT {self.config.member_col}) AS n
             FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND {self.config.diag_category_col} IS NOT NULL
+              AND RECONCILED_DIAGNOSIS_CODE_ICD10 IS NOT NULL
             GROUP BY 1,2 ORDER BY 1, 5 DESC
         """
         rows = self.snowflake.query(sql)
@@ -925,17 +963,27 @@ class PHMDataAnalyzer:
     # ── Section 16: Work-Related Musculoskeletal Expenditures ─────────────────
 
     def analyze_musculoskeletal_work(self) -> Optional[ChartData]:
-        """Potentially work-related MSK claims aggregated by diagnosis category and year."""
+        """Potentially work-related MSK claims bucketed by body part via ICD-10 M-code prefix."""
         dc = self.config.medical_date_col
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   COALESCE({self.config.diag_category_col}, 'OTHER') AS body_part,
+                   CASE
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M54','M47','M48','M51') THEN 'BACK'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M75','M77') THEN 'SHOULDER'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M65','M66','M67','M70') THEN 'HAND & WRIST'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M17','M23','M25') THEN 'KNEE'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M16','M24') THEN 'HIP'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M19','M79','M60','M62') THEN 'UPPER EXTREMITY'
+                     WHEN LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 3) IN ('M20','M21','M72') THEN 'LOWER EXTREMITY'
+                     ELSE 'OTHER MSK'
+                   END AS body_part,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
                    COUNT(DISTINCT {self.config.member_col}) AS n
             FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
+              AND RECONCILED_DIAGNOSIS_CODE_ICD10 IS NOT NULL
+              AND LEFT(UPPER(TRIM(RECONCILED_DIAGNOSIS_CODE_ICD10)), 1) = 'M'
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
@@ -960,7 +1008,7 @@ class PHMDataAnalyzer:
         sql = f"""
             SELECT YEAR({dc}) AS yr,
                    CASE
-                     WHEN UPPER(HOSPITALIZED_OR_NOT) = 'YES'            THEN 'Inpatient'
+                     WHEN UPPER(COALESCE(IN_OR_OUT_PATIENT_TYPE,'')) LIKE '%INPATIENT%' THEN 'Inpatient'
                      WHEN UPPER({self.config.pos_col}) LIKE '%EMERGENCY%' THEN 'Emergency Room'
                      ELSE 'Outpatient'
                    END AS service_type,
