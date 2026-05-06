@@ -390,28 +390,61 @@ class PHMDataAnalyzer:
         )
 
     def analyze_diabetes_complications(self) -> Optional[ChartData]:
-        """Section 9 top table: Diabetes-specific complication categories by year (total $, N)."""
+        """Section 9 top table: Diabetes-specific complication categories by year (total $, N).
+        Complication type is derived from CHRONIC_CAT by matching known diabetes complication keywords.
+        """
         sql = f"""
             SELECT FILE_YEAR,
-                   DIABETES_COMPLICATION_CATEGORY AS complication,
+                   CHRONIC_CAT,
                    SUM(CHRONIC_PAID_AMT) AS total_amt,
                    COUNT(DISTINCT UNIQUE_ID) AS n
             FROM {self.config.schema}.VW_RISK_GROUP_MIGRATION
             WHERE FILE_YEAR IN {self._get_years_clause()}
               AND CHRONIC_CAT LIKE '%DIABETES%'
-              AND DIABETES_COMPLICATION_CATEGORY IS NOT NULL
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
         if not rows: return None
-        totals: Dict[str, float] = {}
+
+        # Map CHRONIC_CAT to complication category based on disease keywords
+        COMPLICATION_KEYWORDS = [
+            ("Cardiovascular",      ["HEART DISEASE", "HEART FAILURE", "CORONARY", "CARDIAC"]),
+            ("Peripheral Vascular", ["PERIPHERAL VASCULAR", "PERIPHERAL ARTERY", "PAD"]),
+            ("Neuropathy",          ["NEUROPATHY", "NERVE"]),
+            ("Nephropathy",         ["KIDNEY", "NEPHROPATHY", "RENAL", "CKD"]),
+            ("Retinopathy",         ["RETINOPATHY", "RETINAL", "EYE"]),
+            ("Hyperlipidemia",      ["HYPERLIPIDEMIA", "CHOLESTEROL"]),
+            ("Hypertension",        ["HYPERTENSION", "BLOOD PRESSURE"]),
+            ("Obesity",             ["OBESITY", "OBESE"]),
+        ]
+
+        def _classify(chronic_cat: str) -> str:
+            upper = chronic_cat.upper()
+            for label, keywords in COMPLICATION_KEYWORDS:
+                if any(kw in upper for kw in keywords):
+                    return label
+            return "Other"
+
+        # Re-aggregate by derived complication category
+        agg: Dict[tuple, dict] = {}
         for r in rows:
+            comp = _classify(str(r.get("CHRONIC_CAT", "")))
+            yr = str(r.get("FILE_YEAR", ""))
+            key = (yr, comp)
+            if key not in agg:
+                agg[key] = {"FILE_YEAR": yr, "COMPLICATION": comp, "TOTAL_AMT": 0.0, "N": 0}
+            agg[key]["TOTAL_AMT"] += float(r.get("TOTAL_AMT") or 0)
+            agg[key]["N"] += int(r.get("N") or 0)
+
+        agg_rows = sorted(agg.values(), key=lambda x: (-float(x["TOTAL_AMT"]), x["FILE_YEAR"]))
+        totals: Dict[str, float] = {}
+        for r in agg_rows:
             c = str(r.get("COMPLICATION", ""))
             totals[c] = totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
         return ChartData(
             title="Diabetes Complications Expenditures",
             chart_type="horizontalBar",
-            data=rows, x_axis="Complication Type", y_axis="Total Amount ($)",
+            data=agg_rows, x_axis="Complication Type", y_axis="Total Amount ($)",
             labels=list(totals.keys()), values=list(totals.values()),
         )
 
@@ -865,13 +898,12 @@ class PHMDataAnalyzer:
     # ── Section 15: Value of Preventive Screenings ────────────────────────────
 
     def analyze_preventive_screening_value(self) -> Optional[ChartData]:
-        """Cancer diagnoses detected after screening (breast, cervical, colon) by year."""
+        """Preventive screening counts (screened vs eligible) by cancer type and year."""
         sql = f"""
             SELECT YEAR,
                    CANCER_SCREENING,
-                   COUNT(DISTINCT CASE WHEN CANCER_DIAGNOSIS_DATE IS NOT NULL THEN UNIQUE_ID END) AS diagnosed_n,
                    COUNT(DISTINCT UNIQUE_ID) AS eligible_n,
-                   SUM(CASE WHEN CANCER_DIAGNOSIS_DATE IS NOT NULL THEN COALESCE(CANCER_TREATMENT_COST, 0) ELSE 0 END) AS treatment_cost
+                   SUM(CASE WHEN SCREENING_DATE_MIN IS NOT NULL THEN 1 ELSE 0 END) AS screened_n
             FROM {self.config.schema}.VW_PREVENTIVE_SCREENING
             WHERE YEAR IN {self._get_years_clause()}
             GROUP BY 1,2 ORDER BY 1,2
@@ -879,49 +911,34 @@ class PHMDataAnalyzer:
         rows = self.snowflake.query(sql)
         if not rows:
             return None
+        for r in rows:
+            eligible = int(r.get("ELIGIBLE_N") or 0)
+            screened = int(r.get("SCREENED_N") or 0)
+            r["SCREENING_RATE_PCT"] = round(screened / eligible * 100, 1) if eligible else 0
         return ChartData(
-            title="Value of Preventive Screenings — Cancer Diagnoses Identified",
+            title="Value of Preventive Screenings",
             chart_type="table",
-            data=rows, x_axis="Cancer Type", y_axis="Diagnosed N",
+            data=rows, x_axis="Cancer Type", y_axis="Screened N",
             labels=[], values=[],
         )
 
     # ── Section 16: Work-Related Musculoskeletal Expenditures ─────────────────
 
     def analyze_musculoskeletal_work(self) -> Optional[ChartData]:
-        """Potentially work-related MSK claims (body-part buckets) by year."""
+        """Potentially work-related MSK claims aggregated by diagnosis category and year."""
         dc = self.config.medical_date_col
-        MSK_BODY_PARTS = (
-            "'BACK','NECK','SHOULDER','HAND','WRIST','KNEE','HIP',"
-            "'FOOT','ANKLE','UPPER EXTREMITY','LOWER EXTREMITY','SPINE'"
-        )
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   COALESCE(BODY_PART_DESCRIPTION, 'OTHER') AS body_part,
+                   COALESCE({self.config.diag_category_col}, 'OTHER') AS body_part,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
                    COUNT(DISTINCT {self.config.member_col}) AS n
             FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
               AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
-              AND BODY_PART_DESCRIPTION IS NOT NULL
             GROUP BY 1,2 ORDER BY 1, 3 DESC
         """
         rows = self.snowflake.query(sql)
-        if not rows:
-            # Fallback: aggregate all MSK without body-part breakdown
-            sql2 = f"""
-                SELECT YEAR({dc}) AS yr,
-                       'MUSCULOSKELETAL' AS body_part,
-                       SUM({self.config.medical_amount_col}) AS total_amt,
-                       AVG({self.config.medical_amount_col}) AS mean_amt,
-                       COUNT(DISTINCT {self.config.member_col}) AS n
-                FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
-                WHERE YEAR({dc}) IN {self._get_years_clause()}
-                  AND UPPER({self.config.diag_category_col}) = 'MUSCULOSKELETAL'
-                GROUP BY 1,2 ORDER BY 1
-            """
-            rows = self.snowflake.query(sql2)
         if not rows:
             return None
         totals: Dict[str, float] = {}
@@ -981,7 +998,7 @@ class PHMDataAnalyzer:
         pos_col = self.config.pos_col
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   COALESCE(PRIMARY_DIAGNOSIS_DESC, PRIMARY_DIAGNOSIS_CODE) AS diagnosis,
+                   PRIMARY_DIAGNOSIS_CODE AS diagnosis,
                    PRIMARY_DIAGNOSIS_CODE AS icd_code,
                    SUM({self.config.medical_amount_col}) AS total_amt,
                    AVG({self.config.medical_amount_col}) AS mean_amt,
