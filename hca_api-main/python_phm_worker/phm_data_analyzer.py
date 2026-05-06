@@ -808,10 +808,11 @@ class PHMDataAnalyzer:
         dc = self.config.pharmacy_date_col
         sql = f"""
             SELECT YEAR({dc}) AS yr,
-                   CASE WHEN {self.config.brand_generic_col} = 'YES' THEN 'Generic'
-                        WHEN {self.config.brand_generic_col} = 'NO'  THEN 'Brand'
-                        ELSE 'Other' END AS drug_type,
+                   CASE WHEN {self.config.brand_generic_col} = 'YES' THEN 'GENERIC'
+                        WHEN {self.config.brand_generic_col} = 'NO'  THEN 'BRAND'
+                        ELSE 'OTHER' END AS drug_type,
                    SUM({self.config.pharmacy_amount_col}) AS total_amt,
+                   AVG({self.config.pharmacy_amount_col}) AS mean_amt,
                    COUNT(*) AS n
             FROM {self.config.schema}.STG_TAB_PHARMACY_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}

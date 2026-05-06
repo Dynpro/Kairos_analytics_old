@@ -3870,72 +3870,106 @@ class PDFReportGenerator:
         hdr._toc_entry = "24. Medication Compliance"
         story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
+
+        # Intro text matching reference
+        story.append(Paragraph("<b>Medication Possession Ratio</b> (MPR) is calculated as follows:", self.S["Body"]))
+        story.append(Spacer(1, 0.08*inch))
         story.append(Paragraph(
-            "Medication Possession Ratio (MPR) is a commonly used measure of medication "
-            "adherence. An MPR ≥ 80% is generally considered compliant.",
+            "Days of Prescription = Beginning Date of Prescription – End Date of Prescription",
+            ParagraphStyle("mpr_indent", parent=self.S["Body"], leftIndent=30)
+        ))
+        story.append(Spacer(1, 0.04*inch))
+        story.append(Paragraph(
+            "Medication Possession Ratio = Sum of Days Supply for Prescription ÷ Days of Prescription",
+            ParagraphStyle("mpr_indent2", parent=self.S["Body"], leftIndent=30)
+        ))
+        story.append(Spacer(1, 0.08*inch))
+        story.append(Paragraph(
+            "Medication Possession Ratio (MPR) measures the average compliance to prescriptions "
+            "for those individuals who received a prescription and refilled it at least once.",
             self.S["Body"]
         ))
         story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph(
+            "Medication Possession Ratio for All Medication, Statin Medication, and "
+            "Hypertension Medication was as follows:",
+            self.S["Body"]
+        ))
+        story.append(Spacer(1, 0.12*inch))
 
         cd = charts.get("medication_mpr")
         if not cd or not cd.data:
             story.append(Paragraph("No medication compliance data available.", self.S["Body"]))
             return
 
-        hdr = ["Year", "All Medication\nMPR %", "Statin\nMPR %",
-               "Hypertension\nMPR %", "Diabetes\nMPR %", "N"]
-        t_data = [hdr]
-        for r in cd.data:
-            t_data.append([
-                str(r.get("YEAR", "")),
-                f"{float(r.get('ALL_MPR') or 0):.1f}%",
-                f"{float(r.get('STATIN_MPR') or 0):.1f}%" if r.get("STATIN_MPR") else "—",
-                f"{float(r.get('HTN_MPR') or 0):.1f}%"    if r.get("HTN_MPR")    else "—",
-                f"{float(r.get('DIABETES_MPR') or 0):.1f}%" if r.get("DIABETES_MPR") else "—",
-                f"{int(r.get('N') or 0):,}",
-            ])
+        def _mpr_table(title: str, mpr_key: str, n_key: str = "N"):
+            """Build a single MPR table for one medication category."""
+            story.append(Paragraph(
+                f"<u><b>Medication Possession Ratio for {title}</b></u>",
+                ParagraphStyle("mpr_title", parent=self.S["Body"], alignment=TA_CENTER,
+                               spaceAfter=4)
+            ))
+            story.append(Spacer(1, 0.06*inch))
 
-        col_w = [0.8*inch, 1.4*inch, 1.0*inch, 1.4*inch, 1.1*inch, 1.6*inch]
-        t = self._make_table(t_data, col_widths=col_w)
-        story.append(t)
-        story.append(Spacer(1, 0.2*inch))
+            col_hdr = ["Medication Possession\nRatio Year",
+                       "Medication Possession Ratio\nMedication Possession Ratio",
+                       "Medication Possession\nRatio Total Members"]
+            t_data = [col_hdr]
 
-        # Chart: line chart of MPR % over years
-        years = [str(r.get("YEAR", "")) for r in cd.data]
-        all_mpr     = [float(r.get("ALL_MPR") or 0) for r in cd.data]
-        statin_mpr  = [float(r.get("STATIN_MPR") or 0) if r.get("STATIN_MPR") else None for r in cd.data]
-        htn_mpr     = [float(r.get("HTN_MPR") or 0) if r.get("HTN_MPR") else None for r in cd.data]
-        diab_mpr    = [float(r.get("DIABETES_MPR") or 0) if r.get("DIABETES_MPR") else None for r in cd.data]
+            total_n = 0
+            mpr_vals = []
+            for r in cd.data:
+                yr  = str(r.get("YEAR", ""))
+                mpr = float(r.get(mpr_key) or 0) if r.get(mpr_key) else None
+                n   = int(r.get(n_key) or 0)
+                total_n += n
+                if mpr is not None:
+                    mpr_vals.append(mpr)
+                t_data.append([
+                    yr,
+                    f"{mpr:.1f}%" if mpr is not None else "—",
+                    str(n),
+                ])
+            avg_mpr = sum(mpr_vals) / len(mpr_vals) if mpr_vals else 0
+            t_data.append(["Total", f"{avg_mpr:.1f}%", str(total_n)])
 
-        datasets = [
-            {"label": "All Medications", "data": all_mpr,
-             "borderColor": "#1F3864", "backgroundColor": "transparent", "fill": False},
-            {"label": "Statin",     "data": [v if v else 0 for v in statin_mpr],
-             "borderColor": "#2E86AB", "backgroundColor": "transparent", "fill": False},
-            {"label": "Hypertension", "data": [v if v else 0 for v in htn_mpr],
-             "borderColor": "#E63946", "backgroundColor": "transparent", "fill": False},
-            {"label": "Diabetes",   "data": [v if v else 0 for v in diab_mpr],
-             "borderColor": "#F1A208", "backgroundColor": "transparent", "fill": False},
-            {"label": "80% Threshold", "data": [80.0] * len(years),
-             "borderColor": "#888888", "borderDash": [6,3],
-             "backgroundColor": "transparent", "fill": False, "pointRadius": 0},
-        ]
-        cfg = {
-            "type": "line",
-            "data": {"labels": years, "datasets": datasets},
-            "options": {
-                "plugins": {
-                    "datalabels": {"display": False},
-                    "legend": {"position": "bottom"}
-                },
-                "title": {"display": True, "text": "Medication Possession Ratio (MPR) by Year"},
-                "scales": {"yAxes": [{"ticks": {"beginAtZero": False, "min": 60, "max": 100}}]}
-            }
-        }
-        img = self._fetch_quickchart(cfg, "chart_sec24.png")
-        if img:
-            story.append(RLImage(img, width=7.0*inch, height=3.2*inch))
-            story.append(Spacer(1, 0.15*inch))
+            wrapped = []
+            for r_idx, row in enumerate(t_data):
+                is_hdr = (r_idx == 0)
+                is_tot = (r_idx == len(t_data) - 1)
+                wr = []
+                for c_idx, cell in enumerate(row):
+                    fn = "Helvetica-Bold" if (is_hdr or is_tot) else "Helvetica"
+                    tc = rl_colors.grey if is_hdr else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wr.append(self._wrap_cell(str(cell), font_name=fn, font_size=8,
+                                              alignment=al, text_color=tc))
+                wrapped.append(wr)
+
+            cw = [2.2*inch, 3.0*inch, 2.1*inch]
+            tbl = Table(wrapped, colWidths=cw, repeatRows=1)
+            tbl.setStyle(TableStyle([
+                ("BACKGROUND",    (0,0), (-1,0), LTBLUE),
+                ("TEXTCOLOR",     (0,0), (-1,0), rl_colors.grey),
+                ("FONTNAME",      (0,0), (-1,0), "Helvetica-Bold"),
+                ("FONTSIZE",      (0,0), (-1,-1), 8),
+                ("ALIGN",         (0,0), (-1,-1), "RIGHT"),
+                ("ALIGN",         (0,0), (0,-1), "LEFT"),
+                ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
+                ("ROWBACKGROUNDS",(0,1), (-1,-2), [WHITE, LTGREY]),
+                ("BACKGROUND",    (0,-1), (-1,-1), LTGREY),
+                ("FONTNAME",      (0,-1), (-1,-1), "Helvetica-Bold"),
+                ("TOPPADDING",    (0,0), (-1,-1), 4),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+                ("LEFTPADDING",   (0,0), (-1,-1), 5),
+                ("VALIGN",        (0,0), (-1,-1), "TOP"),
+            ]))
+            story.append(tbl)
+            story.append(Spacer(1, 0.2*inch))
+
+        _mpr_table("All Medication",       "ALL_MPR")
+        _mpr_table("Statin Medication",    "STATIN_MPR")
+        _mpr_table("Hypertension Medication", "HTN_MPR")
 
         self._key_finding_box(story,
             "Low Medication Possession Ratio (MPR) indicates medication non-adherence, "
@@ -3959,8 +3993,7 @@ class PDFReportGenerator:
         story.append(hdr)
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(
-            "The following section identifies the utilization of Brand versus Generic "
-            "medications and the associated expenditures.",
+            "Pharmacy expenditures related to Brand and Generic medication were as follows:",
             self.S["Body"]
         ))
         story.append(Spacer(1, 0.1*inch))
@@ -3971,26 +4004,30 @@ class PDFReportGenerator:
             return
 
         years = sorted({str(r.get("YR", "")) for r in cd.data})
-        types = ["Brand", "Generic", "Other"]
+        types = ["BRAND", "GENERIC"]
 
         lookup: Dict[tuple, dict] = {}
         for r in cd.data:
             lookup[(str(r.get("DRUG_TYPE", "")), str(r.get("YR", "")))] = r
 
-        hdr1 = ["Drug Type"] + [y for y in years for _ in range(2)]
-        hdr2 = [""] + ["Total $", "N"] * len(years)
+        # Table: 3 sub-columns per year (Total $, Mean $, N) matching reference
+        hdr1 = ["Pharmacy\nrecords\nReporting Year"] + [y for y in years for _ in range(3)]
+        hdr2 = ["Pharmacy\nrecords\nBRAND/GENERIC"] + ["Pharmacy\nrecords\nTOTAL $", "Pharmacy\nrecords\nMEAN $", "Pharmacy\nrecords N"] * len(years)
         t_data = [hdr1, hdr2]
         for dt in types:
             row = [dt]
             for y in years:
                 r = lookup.get((dt, y), {})
+                total = float(r.get("TOTAL_AMT") or 0) if r else 0
+                mean  = float(r.get("MEAN_AMT") or 0) if r else 0
+                n     = int(r.get("N") or 0) if r else 0
                 row += [
-                    f"${float(r.get('TOTAL_AMT') or 0):,.0f}" if r else "",
-                    str(int(r.get("N") or 0)) if r else "",
+                    f"${total:,.0f}" if (r and total) else "",
+                    f"${mean:,.0f}" if (r and mean) else "",
+                    str(n) if (r and n) else "",
                 ]
             t_data.append(row)
 
-        # Wrap data
         wrapped_data = []
         for r_idx, row in enumerate(t_data):
             wrapped_row = []
@@ -4006,7 +4043,7 @@ class PDFReportGenerator:
             wrapped_data.append(wrapped_row)
 
         ncols = len(hdr1)
-        type_w = 1.3 * inch
+        type_w = 1.5 * inch
         col_w = [type_w] + [(7.3 * inch - type_w) / (ncols - 1)] * (ncols - 1)
         t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
         style = [
@@ -4021,67 +4058,60 @@ class PDFReportGenerator:
             ("TOPPADDING",    (0,0), (-1,-1), 3),
             ("BOTTOMPADDING", (0,0), (-1,-1), 3),
             ("LEFTPADDING",   (0,0), (-1,-1), 4),
+            ("VALIGN",        (0,0), (-1,-1), "TOP"),
         ]
         for i, _ in enumerate(years):
-            c = 1 + i * 2
-            style.append(("SPAN", (c,0), (c+1,0)))
+            c = 1 + i * 3
+            style.append(("SPAN", (c,0), (c+2,0)))
         t.setStyle(TableStyle(style))
         story.append(t)
         story.append(Spacer(1, 0.2*inch))
 
-        # Stacked bar chart: brand vs generic by year
-        brand_data   = [float(lookup.get(("Brand",   y), {}).get("TOTAL_AMT") or 0) for y in years]
-        generic_data = [float(lookup.get(("Generic", y), {}).get("TOTAL_AMT") or 0) for y in years]
+        # Horizontal grouped bar + N line chart matching reference
+        brand_total   = [float(lookup.get(("BRAND",   y), {}).get("TOTAL_AMT") or 0) for y in years]
+        generic_total = [float(lookup.get(("GENERIC", y), {}).get("TOTAL_AMT") or 0) for y in years]
+        brand_n       = [int(lookup.get(("BRAND",   y), {}).get("N") or 0) for y in years]
+        generic_n     = [int(lookup.get(("GENERIC", y), {}).get("N") or 0) for y in years]
+
         cfg = {
-            "type": "bar",
+            "type": "horizontalBar",
             "data": {
                 "labels": years,
                 "datasets": [
-                    {"label": "Brand",   "data": brand_data,   "backgroundColor": "#E63946",
-                     "stack": "drug"},
-                    {"label": "Generic", "data": generic_data, "backgroundColor": "#227EE4",
-                     "stack": "drug"},
+                    {"type": "horizontalBar", "label": "BRAND - Total $",   "data": brand_total,
+                     "backgroundColor": "#2B3A5A", "yAxisID": "y-axis-0"},
+                    {"type": "line", "label": "BRAND - N",   "data": brand_n,
+                     "borderColor": "#2B3A5A", "backgroundColor": "transparent",
+                     "fill": False, "pointRadius": 4, "yAxisID": "y-axis-1"},
+                    {"type": "horizontalBar", "label": "GENERIC - Total $", "data": generic_total,
+                     "backgroundColor": "#227EE4", "yAxisID": "y-axis-0"},
+                    {"type": "line", "label": "GENERIC - N", "data": generic_n,
+                     "borderColor": "#227EE4", "backgroundColor": "transparent",
+                     "fill": False, "pointRadius": 4, "yAxisID": "y-axis-1"},
                 ]
             },
             "options": {
                 "plugins": {
-                    "datalabels": {"display": False},
+                    "datalabels": {"display": True, "align": "right", "anchor": "end",
+                                   "font": {"weight": "bold", "size": 9}},
                     "legend": {"position": "bottom"}
                 },
-                "title": {"display": True,
-                          "text": "Brand vs. Generic Pharmaceutical Expenditure by Year"},
-                "scales": {"yAxes": [{"stacked": True, "ticks": {"beginAtZero": True}}],
-                           "xAxes": [{"stacked": True}]}
+                "title": {"display": True, "text": "Brand vs. Generic Medication Usage - Total Population"},
+                "scales": {
+                    "xAxes": [{"id": "y-axis-0", "ticks": {"beginAtZero": True}}],
+                    "yAxes": [
+                        {"id": "y-axis-1", "position": "right",
+                         "ticks": {"beginAtZero": True}, "gridLines": {"display": False}}
+                    ]
+                }
             }
         }
         img = self._fetch_quickchart(cfg, "chart_sec25.png")
         if img:
-            story.append(RLImage(img, width=7.0*inch, height=3.2*inch))
+            story.append(Paragraph("<b>Brand vs. Generic Medication Usage - Total Population</b>",
+                                   ParagraphStyle("cen25", parent=self.S["Body"], alignment=TA_CENTER)))
+            story.append(RLImage(img, width=7.0*inch, height=3.5*inch))
             story.append(Spacer(1, 0.15*inch))
-
-        # Pie chart: brand vs generic total
-        brand_total   = sum(brand_data)
-        generic_total = sum(generic_data)
-        if brand_total + generic_total > 0:
-            cfg_pie = {
-                "type": "pie",
-                "data": {
-                    "labels": ["Brand", "Generic"],
-                    "datasets": [{"data": [brand_total, generic_total],
-                                  "backgroundColor": ["#E63946", "#227EE4"]}]
-                },
-                "options": {
-                    "plugins": {
-                        "datalabels": {"display": True, "formatter": "function(v,ctx){return Math.round(v*100/(ctx.dataset.data.reduce((a,b)=>a+b,0)))+'%'}"},
-                        "legend": {"position": "bottom"}
-                    },
-                    "title": {"display": True, "text": "Brand vs. Generic Split (Total)"}
-                }
-            }
-            img_pie = self._fetch_quickchart(cfg_pie, "chart_sec25_pie.png")
-            if img_pie:
-                story.append(RLImage(img_pie, width=4.0*inch, height=3.0*inch))
-                story.append(Spacer(1, 0.15*inch))
 
         self._key_finding_box(story,
             "High brand drug utilization represents an immediate cost-reduction opportunity. "
