@@ -24,7 +24,7 @@ class PHMReportConfig:
     pharmacy_rel_col: str = "RELATIONSHIP_TO_EMPLOYEE"
     brand_generic_col: str = "DRUG_INDICATOR_GENERIC_OR_BRAND"
     diag_category_col: str = "DISEASE_GROUP"
-    pos_col: str = "PLACE_OF_SERVICE_NAME"
+    pos_col: str = "PLACE_OF_SERVICE"
 
 
 @dataclass
@@ -1008,8 +1008,7 @@ class PHMDataAnalyzer:
         sql = f"""
             SELECT YEAR({dc}) AS yr,
                    CASE
-                     WHEN UPPER(COALESCE(IN_OR_OUT_PATIENT_TYPE,'')) LIKE '%INPATIENT%' THEN 'Inpatient'
-                     WHEN UPPER({self.config.pos_col}) LIKE '%EMERGENCY%' THEN 'Emergency Room'
+                     WHEN ADMIT_DATE IS NOT NULL THEN 'Inpatient'
                      ELSE 'Outpatient'
                    END AS service_type,
                    SUM({self.config.medical_amount_col}) AS total_amt,
@@ -1053,7 +1052,6 @@ class PHMDataAnalyzer:
                    COUNT(DISTINCT {self.config.member_col}) AS n
             FROM {self.config.schema}.STG_TAB_MEDICAL_DATA
             WHERE YEAR({dc}) IN {self._get_years_clause()}
-              AND UPPER({pos_col}) LIKE '%EMERGENCY%'
               AND (
                     LEFT(UPPER(TRIM(PRIMARY_DIAGNOSIS_CODE)), 3) IN ({AVOIDABLE_ICD_PREFIXES})
                  OR LEFT(UPPER(TRIM(PRIMARY_DIAGNOSIS_CODE)), 4) IN ({AVOIDABLE_ICD_PREFIXES})
