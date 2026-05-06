@@ -2163,8 +2163,15 @@ class PDFReportGenerator:
                 lookup[(str(r.get("COMPLICATION", "")), str(r.get("FILE_YEAR", "")))] = r
 
             # Build overall total column too (matching Long County)
-            hdr1 = ["Diabetes Specific Complications"] + years + ["Total"]
-            hdr2 = [""] + ["Total $", "N"] * len(years) + ["Total $"]
+            hdr1 = ["Diabetes Specific Complications"]
+            for y in years:
+                hdr1.extend([y, ""])
+            hdr1.append("Grand Total")
+
+            hdr2 = [""]
+            for _ in years:
+                hdr2.extend(["Total $", "N"])
+            hdr2.append("Total $")
             t_data = [hdr1, hdr2]
             for comp in comps:
                 row = [comp]
@@ -2195,8 +2202,8 @@ class PDFReportGenerator:
                         wrapped_row.append(cell)
                 wrapped_data.append(wrapped_row)
 
-            ncols = len(hdr1)
-            comp_w = 2.0 * inch
+            ncols = len(hdr2)
+            comp_w = 2.4 * inch
             col_w = [comp_w] + [(7.3 * inch - comp_w) / (ncols - 1)] * (ncols - 1)
             t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
             style = [
@@ -2216,6 +2223,8 @@ class PDFReportGenerator:
             for i, _ in enumerate(years):
                 c = 1 + i * 2
                 style.append(("SPAN", (c, 0), (c + 1, 0)))
+            style.append(("SPAN", (0, 0), (0, 1))) # Span first column across rows
+            style.append(("SPAN", (-1, 0), (-1, 1))) # Span Grand Total across rows
             t.setStyle(TableStyle(style))
             story.append(t)
             story.append(Spacer(1, 0.1*inch))
@@ -2237,8 +2246,11 @@ class PDFReportGenerator:
                 },
                 "options": {
                     "plugins": {
-                        "datalabels": {"display": True, "align": "right", "anchor": "end",
-                                       "font": {"weight": "bold", "size": 9}},
+                        "datalabels": {
+                            "display": True, "align": "right", "anchor": "end",
+                            "font": {"weight": "bold", "size": 9},
+                            "formatter": "function(v){return '$'+v.toLocaleString();}"
+                        },
                         "legend": {"position": "bottom"}
                     },
                     "title": {"display": True, "text": "Total Amount Paid - Complications of Diabetes"}
