@@ -321,6 +321,23 @@ class PDFReportGenerator:
             textColor=WHITE, leading=12)
         self.S = S
 
+    def _wrap_cell(self, text: Any, font_name="Helvetica", font_size=8, alignment=TA_LEFT, text_color=BLACK):
+        if text is None: return ""
+        # Clean up literal \n and \\n for Paragraph. 
+        # Also handle pipe | characters by adding a space or breaking to allow wrapping.
+        s = str(text).replace("\\n", "<br/>").replace("\n", "<br/>").replace("|", "<br/>")
+        if not s: return ""
+        style = ParagraphStyle(
+            "CellWrap",
+            fontName=font_name,
+            fontSize=font_size,
+            leading=font_size * 1.4,  # Increased leading for better vertical separation
+            alignment=alignment,
+            textColor=text_color,
+            wordWrap="LTR" # Ensure standard word wrap
+        )
+        return Paragraph(s, style)
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def generate_pdf(self, report_id: int, report_name: str, client_name: str,
@@ -1097,7 +1114,23 @@ class PDFReportGenerator:
         story.append(self._make_table(rows_out, col_widths=col_w))
 
     def _make_table(self, data, col_widths=None) -> Table:
-        t = Table(data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
+        # Wrap all strings in Paragraph for automatic wrapping
+        wrapped_data = []
+        for r_idx, row in enumerate(data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    # Headers usually centered except first column
+                    al = TA_CENTER if (r_idx == 0 and c_idx > 0) else TA_LEFT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
+        t = Table(wrapped_data, colWidths=col_widths, repeatRows=1, hAlign="LEFT")
         t.setStyle(TableStyle([
             ("BACKGROUND",    (0,0), (-1,0), NAVY),
             ("TEXTCOLOR",     (0,0), (-1,0), WHITE),
@@ -1111,6 +1144,7 @@ class PDFReportGenerator:
             ("TOPPADDING",    (0,0), (-1,-1), 4),
             ("BOTTOMPADDING", (0,0), (-1,-1), 4),
             ("LEFTPADDING",   (0,0), (-1,-1), 5),
+            ("VALIGN",        (0,0), (-1,-1), "TOP"),
         ]))
         return t
 
@@ -1320,16 +1354,32 @@ class PDFReportGenerator:
             n_val = [int(r["N"] or 0) for r in cd_med.data]
             
             # Table
-            t_data = [["Medical records Reporting Year", "Medical records TOTAL $", "Medical records MEAN $", "Medical records N"]]
+            t_data = [["Medical records\nReporting Year", "Medical records\nTOTAL $", "Medical records\nMEAN $", "Medical records\nN"]]
             sum_tot = 0
             sum_n = 0
             for i, y in enumerate(years):
                 t_data.append([y, f"${tot[i]:,.0f}", f"${mean[i]:,.0f}", f"{n_val[i]:,}"])
                 sum_tot += tot[i]
                 sum_n += n_val[i]
-                
+
             t_data.append(["Total", f"${sum_tot:,.0f}", f"${(sum_tot/sum_n if sum_n else 0):,.0f}", f"{sum_n:,}"])
-            t = Table(t_data, colWidths=[2.5*inch, 1.6*inch, 1.6*inch, 1.6*inch])
+
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx == 0)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
+            t = Table(wrapped_data, colWidths=[2.5*inch, 1.6*inch, 1.6*inch, 1.6*inch])
             style = [
                 ("BACKGROUND",    (0,0), (-1,0), LTBLUE),
                 ("TEXTCOLOR",     (0,0), (-1,0), rl_colors.grey),
@@ -1341,6 +1391,7 @@ class PDFReportGenerator:
                 ("ROWBACKGROUNDS",(0,1), (-1,-1), [WHITE, LTGREY]),
                 ("TOPPADDING",    (0,0), (-1,-1), 4),
                 ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+                ("VALIGN",        (0,0), (-1,-1), "TOP"),
             ]
             t.setStyle(TableStyle(style))
             story.append(t)
@@ -1483,16 +1534,14 @@ class PDFReportGenerator:
                     if data_by_rel[rel]["mean"][-1] == 0 and n_val > 0:
                          data_by_rel[rel]["mean"][-1] = data_by_rel[rel]["tot"][-1] / n_val
             
-            headers = ["Medical records\\nReporting Year"] + [y for y in years]
+            headers = ["Medical records"]
+            for y in years:
+                headers.extend([y, "", ""])
             t_data = [headers]
             
-            sub_headers = ["Medical records\\nRELATIONSHIP TO\\nEMPLOYEE"]
+            sub_headers = ["Relationship to Employee"]
             for _ in years:
-                sub_headers.extend(["Medical\\nrecords\\nTOTAL $", "Medical\\nrecords\\nMEAN $", "Medical\\nrecords\\nN"])
-            
-            t_data[0] = ["Medical records\\nReporting Year"]
-            for y in years:
-                t_data[0].extend([y, "", ""])
+                sub_headers.extend(["TOTAL $", "MEAN $", "N"])
             
             t_data.append(sub_headers)
             
@@ -1502,8 +1551,23 @@ class PDFReportGenerator:
                     row.extend([f"${data_by_rel[rel]['tot'][i]:,.0f}", f"${data_by_rel[rel]['mean'][i]:,.0f}", f"{data_by_rel[rel]['n'][i]:,}"])
                 t_data.append(row)
                 
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
             col_widths = [1.5*inch] + [0.65*inch] * (len(years) * 3)
-            t = Table(t_data, colWidths=col_widths)
+            t = Table(wrapped_data, colWidths=col_widths)
             
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
@@ -1514,6 +1578,7 @@ class PDFReportGenerator:
                 ("ALIGN",         (0,0), (0,-1), "LEFT"),
                 ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
                 ("SPAN",          (0,0), (0,1)),
+                ("VALIGN",        (0,0), (-1,-1), "TOP"),
             ]
             col_idx = 1
             for _ in years:
@@ -1571,13 +1636,13 @@ class PDFReportGenerator:
                     data_by_gen[gen]["n"].append(n_val)
                     data_by_gen[gen]["mean"].append(mean)
             
-            t_data = [["Medical records\\nMEMBER GENDER"]]
+            t_data = [["Gender"]]
             for g in ["F", "M"]:
                 t_data[0].extend([g, "", ""])
             
-            sub_headers = ["Medical records\\nReporting Year"]
+            sub_headers = ["Reporting Year"]
             for _ in ["F", "M"]:
-                sub_headers.extend(["Medical\\nrecords\\nTOTAL $", "Medical\\nrecords\\nMEAN $", "Medical\\nrecords\\nN"])
+                sub_headers.extend(["TOTAL $", "MEAN $", "N"])
             t_data.append(sub_headers)
             
             for i, y in enumerate(years):
@@ -1585,9 +1650,24 @@ class PDFReportGenerator:
                 for g in ["F", "M"]:
                     row.extend([f"${data_by_gen[g]['tot'][i]:,.0f}", f"${data_by_gen[g]['mean'][i]:,.0f}", f"{data_by_gen[g]['n'][i]:,}"])
                 t_data.append(row)
+            
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
                 
             col_widths = [1.5*inch] + [0.95*inch] * 6
-            t = Table(t_data, colWidths=col_widths)
+            t = Table(wrapped_data, colWidths=col_widths)
             
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
@@ -1600,6 +1680,7 @@ class PDFReportGenerator:
                 ("SPAN",          (0,0), (0,1)),
                 ("SPAN",          (1,0), (3,0)),
                 ("SPAN",          (4,0), (6,0)),
+                ("VALIGN",        (0,0), (-1,-1), "TOP"),
             ]
             t.setStyle(TableStyle(style))
             story.append(t)
@@ -1674,8 +1755,8 @@ class PDFReportGenerator:
             lookup[(str(r.get("CATEGORY", "")), str(r.get("YR", "")))] = r
 
         # Header rows
-        hdr1 = ["Medical records Reporting Year"] + [y for y in years for _ in range(2)]
-        hdr2 = ["Medical records DIAGNOSTIC CATEGORY"] + ["Medical\nrecords\nTOTAL $", "Medical\nrecords\nN"] * len(years)
+        hdr1 = ["Medical records"] + [y for y in years for _ in range(2)]
+        hdr2 = ["DIAGNOSTIC CATEGORY"] + ["TOTAL $", "N"] * len(years)
         t_data = [hdr1, hdr2]
         for cat in cats:
             row = [cat]
@@ -1687,10 +1768,25 @@ class PDFReportGenerator:
                 ]
             t_data.append(row)
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         ncols = len(hdr1)
         cat_w = 3.5 * inch
         col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
-        t = Table(t_data, colWidths=col_w, repeatRows=2)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
         style = [
             ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
             ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
@@ -1703,10 +1799,13 @@ class PDFReportGenerator:
             ("TOPPADDING",    (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("SPAN",          (0, 0), (0, 1)), # Span the first column
         ]
         for i, _ in enumerate(years):
             c = 1 + i * 2
             style.append(("SPAN", (c, 0), (c + 1, 0)))
+        style.append(("SPAN", (0, 0), (0, 1))) # Span first column
         t.setStyle(TableStyle(style))
         story.append(t)
         story.append(Spacer(1, 0.2*inch))
@@ -1757,8 +1856,8 @@ class PDFReportGenerator:
                 seen_mean.add(c)
         cats_mean = cats_mean[:20]
 
-        hdr1m = ["Medical records Reporting Year"] + [y for y in years for _ in range(2)]
-        hdr2m = ["Medical records DIAGNOSTIC CATEGORY"] + ["Medical\nrecords\nMEAN $", "Medical\nrecords\nN"] * len(years)
+        hdr1m = ["Medical records"] + [y for y in years for _ in range(2)]
+        hdr2m = ["DIAGNOSTIC CATEGORY"] + ["MEAN $", "N"] * len(years)
         t_data_m = [hdr1m, hdr2m]
         for cat in cats_mean:
             row = [cat]
@@ -1770,8 +1869,24 @@ class PDFReportGenerator:
                 ]
             t_data_m.append(row)
 
-        tm = Table(t_data_m, colWidths=col_w, repeatRows=2)
-        tm.setStyle(TableStyle(style))
+        # Wrap data
+        wrapped_data_m = []
+        for r_idx, row in enumerate(t_data_m):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data_m.append(wrapped_row)
+
+        tm = Table(wrapped_data_m, colWidths=col_w, repeatRows=2)
+        style_m = style + [("SPAN", (0, 0), (0, 1))] # Add span to style
+        tm.setStyle(TableStyle(style_m))
         story.append(tm)
         story.append(Spacer(1, 0.2*inch))
 
@@ -1850,6 +1965,7 @@ class PDFReportGenerator:
                 ("TOPPADDING",    (0, 0), (-1, -1), 3),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+                ("VALIGN",        (0, 0), (-1, -1), "TOP"),
             ]
             for i, _ in enumerate(years):
                 c = 1 + i * 2
@@ -1866,8 +1982,8 @@ class PDFReportGenerator:
             cat_totals[c] = cat_totals.get(c, 0) + float(r.get("TOTAL_AMT") or 0)
         cats_by_total = [k for k, _ in sorted(cat_totals.items(), key=lambda x: x[1], reverse=True)]
 
-        hdr1 = ["Medical records\nCHRONIC CATEGORY"] + [y for y in years for _ in range(2)]
-        hdr2 = [""] + ["Medical\nrecords\nTOTAL $", "Medical\nrecords N"] * len(years)
+        hdr1 = ["Medical records"] + [y for y in years for _ in range(2)]
+        hdr2 = ["CHRONIC CATEGORY"] + ["TOTAL $", "N"] * len(years)
         t_data = [hdr1, hdr2]
         for cat in cats_by_total:
             row = [cat]
@@ -1878,7 +1994,22 @@ class PDFReportGenerator:
                 row += [f"${amt:,.0f}" if (r and amt) else "", str(n) if (r and n) else ""]
             t_data.append(row)
 
-        t = Table(t_data, colWidths=col_w, repeatRows=2)
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
         t.setStyle(TableStyle(_pivot_style(col_w, years)))
         story.append(t)
         story.append(Spacer(1, 0.15*inch))
@@ -1899,8 +2030,8 @@ class PDFReportGenerator:
                 cat_means[c] = cat_means.get(c, 0) + (amt / n)
         cats_by_mean = [k for k, _ in sorted(cat_means.items(), key=lambda x: x[1], reverse=True)]
 
-        hdr1m = ["Medical records\nCHRONIC CATEGORY"] + [y for y in years for _ in range(2)]
-        hdr2m = [""] + ["Medical\nrecords\nMEAN $", "Medical\nrecords N"] * len(years)
+        hdr1m = ["Medical records"] + [y for y in years for _ in range(2)]
+        hdr2m = ["CHRONIC CATEGORY"] + ["MEAN $", "N"] * len(years)
         t_data_m = [hdr1m, hdr2m]
         for cat in cats_by_mean:
             row = [cat]
@@ -1912,7 +2043,22 @@ class PDFReportGenerator:
                 row += [f"${mean:,.0f}" if (r and mean) else "", str(n) if (r and n) else ""]
             t_data_m.append(row)
 
-        tm = Table(t_data_m, colWidths=col_w, repeatRows=2)
+        # Wrap data
+        wrapped_data_m = []
+        for r_idx, row in enumerate(t_data_m):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data_m.append(wrapped_row)
+
+        tm = Table(wrapped_data_m, colWidths=col_w, repeatRows=2)
         tm.setStyle(TableStyle(_pivot_style(col_w, years)))
         story.append(tm)
         story.append(Spacer(1, 0.15*inch))
@@ -1935,7 +2081,7 @@ class PDFReportGenerator:
             cat_n_totals[c] = cat_n_totals.get(c, 0) + int(r.get("N") or 0)
         cats_by_freq = [k for k, _ in sorted(cat_n_totals.items(), key=lambda x: x[1], reverse=True)]
 
-        hdr_f  = ["Medical records\nCHRONIC CATEGORY"] + [f"Medical\nrecords N\n{y}" for y in years]
+        hdr_f  = ["Medical records"] + [f"N {y}" for y in years]
         t_data_f = [hdr_f]
         for cat in cats_by_freq:
             row = [cat]
@@ -1945,9 +2091,24 @@ class PDFReportGenerator:
                 row.append(str(n) if (r and n) else "")
             t_data_f.append(row)
 
+        # Wrap data
+        wrapped_data_f = []
+        for r_idx, row in enumerate(t_data_f):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data_f.append(wrapped_row)
+
         ncols_f = len(hdr_f)
         col_w_f = [2.8 * inch] + [(7.3 * inch - 2.8 * inch) / (ncols_f - 1)] * (ncols_f - 1)
-        tf = Table(t_data_f, colWidths=col_w_f, repeatRows=1)
+        tf = Table(wrapped_data_f, colWidths=col_w_f, repeatRows=1)
         tf.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), LTBLUE),
             ("TEXTCOLOR",     (0, 0), (-1, 0), rl_colors.grey),
@@ -1961,6 +2122,7 @@ class PDFReportGenerator:
             ("TOPPADDING",    (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
         ]))
         story.append(tf)
 
@@ -2018,10 +2180,25 @@ class PDFReportGenerator:
                 row.append(f"${grand:,.0f}")
                 t_data.append(row)
 
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
             ncols = len(hdr1)
             comp_w = 2.0 * inch
             col_w = [comp_w] + [(7.3 * inch - comp_w) / (ncols - 1)] * (ncols - 1)
-            t = Table(t_data, colWidths=col_w, repeatRows=2)
+            t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
             style = [
                 ("BACKGROUND",    (0, 0), (-1, 1), LTBLUE),
                 ("TEXTCOLOR",     (0, 0), (-1, 1), rl_colors.grey),
@@ -2034,6 +2211,7 @@ class PDFReportGenerator:
                 ("TOPPADDING",    (0, 0), (-1, -1), 3),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+                ("VALIGN",        (0, 0), (-1, -1), "TOP"),
             ]
             for i, _ in enumerate(years):
                 c = 1 + i * 2
@@ -2186,9 +2364,24 @@ class PDFReportGenerator:
             uniq_row.append(str(totals_med[col]))
         t_data_med.append(uniq_row)
 
+        # Wrap data
+        wrapped_data_med = []
+        for r_idx, row in enumerate(t_data_med):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0 or r_idx == len(t_data_med)-1)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if (r_idx == 0) else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_CENTER
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data_med.append(wrapped_row)
+
         ncols_med = len(hdr_med)
         col_w_med = [1.0 * inch] + [(7.3 * inch - 1.0 * inch) / (ncols_med - 1)] * (ncols_med - 1)
-        t_med = Table(t_data_med, colWidths=col_w_med, repeatRows=1)
+        t_med = Table(wrapped_data_med, colWidths=col_w_med, repeatRows=1)
         t_med.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), LTBLUE),
             ("TEXTCOLOR",     (0, 0), (-1, 0), rl_colors.grey),
@@ -2202,6 +2395,7 @@ class PDFReportGenerator:
             ("FONTNAME",      (0, -1), (-1, -1), "Helvetica-Bold"),
             ("TOPPADDING",    (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
         ]))
         story.append(t_med)
         story.append(Spacer(1, 0.2*inch))
@@ -2231,9 +2425,24 @@ class PDFReportGenerator:
             uniq_row_e.append(str(totals_exam[col]))
         t_data_exam.append(uniq_row_e)
 
+        # Wrap data
+        wrapped_data_exam = []
+        for r_idx, row in enumerate(t_data_exam):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0 or r_idx == len(t_data_exam)-1)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if (r_idx == 0) else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_CENTER
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data_exam.append(wrapped_row)
+
         ncols_exam = len(hdr_exam)
         col_w_exam = [1.0 * inch] + [(7.3 * inch - 1.0 * inch) / (ncols_exam - 1)] * (ncols_exam - 1)
-        t_exam = Table(t_data_exam, colWidths=col_w_exam, repeatRows=1)
+        t_exam = Table(wrapped_data_exam, colWidths=col_w_exam, repeatRows=1)
         t_exam.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), LTBLUE),
             ("TEXTCOLOR",     (0, 0), (-1, 0), rl_colors.grey),
@@ -2247,6 +2456,7 @@ class PDFReportGenerator:
             ("FONTNAME",      (0, -1), (-1, -1), "Helvetica-Bold"),
             ("TOPPADDING",    (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
         ]))
         story.append(t_exam)
         story.append(Spacer(1, 0.2*inch))
@@ -2425,10 +2635,25 @@ class PDFReportGenerator:
                     ]
                 t_data.append(row)
 
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
             ncols = len(hdr1)
             cat_w = 2.5 * inch
             col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
-            t = Table(t_data, colWidths=col_w, repeatRows=2)
+            t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
                 ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -2441,6 +2666,7 @@ class PDFReportGenerator:
                 ("TOPPADDING",    (0,0), (-1,-1), 3),
                 ("BOTTOMPADDING", (0,0), (-1,-1), 3),
                 ("LEFTPADDING",   (0,0), (-1,-1), 4),
+                ("VALIGN",        (0,0), (-1,-1), "TOP"),
             ]
             for i, _ in enumerate(years):
                 c = 1 + i * 3
@@ -2535,10 +2761,25 @@ class PDFReportGenerator:
                 ]
             t_data.append(row)
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         ncols = len(hdr1)
         cat_w = 2.8 * inch
         col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
-        t = Table(t_data, colWidths=col_w, repeatRows=2)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
         style = [
             ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
             ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -2551,6 +2792,7 @@ class PDFReportGenerator:
             ("TOPPADDING",    (0,0), (-1,-1), 3),
             ("BOTTOMPADDING", (0,0), (-1,-1), 3),
             ("LEFTPADDING",   (0,0), (-1,-1), 4),
+            ("VALIGN",        (0,0), (-1,-1), "TOP"),
         ]
         for i, _ in enumerate(years):
             c = 1 + i * 2
@@ -2706,10 +2948,25 @@ class PDFReportGenerator:
                     ]
                 t_data.append(row)
 
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
             ncols = len(hdr1)
             cat_w = 2.3 * inch
             col_w = [cat_w] + [(7.3 * inch - cat_w) / (ncols - 1)] * (ncols - 1)
-            t = Table(t_data, colWidths=col_w, repeatRows=2)
+            t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
                 ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -2722,6 +2979,7 @@ class PDFReportGenerator:
                 ("TOPPADDING",    (0,0), (-1,-1), 3),
                 ("BOTTOMPADDING", (0,0), (-1,-1), 3),
                 ("LEFTPADDING",   (0,0), (-1,-1), 4),
+                ("VALIGN",        (0,0), (-1,-1), "TOP"),
             ]
             for i, _ in enumerate(years):
                 c = 1 + i * 2
@@ -2789,10 +3047,25 @@ class PDFReportGenerator:
                     ]
                 t_data.append(row)
 
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if is_header else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
             ncols = len(hdr1)
             bp_w = 1.8 * inch
             col_w = [bp_w] + [(7.3 * inch - bp_w) / (ncols - 1)] * (ncols - 1)
-            t = Table(t_data, colWidths=col_w, repeatRows=2)
+            t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
                 ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -3095,10 +3368,25 @@ class PDFReportGenerator:
             tot_row.append(f"${grand_total:,.0f}")
             t_data.append(tot_row)
 
+            # Wrap data
+            wrapped_data = []
+            for r_idx, row in enumerate(t_data):
+                wrapped_row = []
+                for c_idx, cell in enumerate(row):
+                    if isinstance(cell, str) and cell:
+                        is_header = (r_idx < 2 or r_idx == len(t_data)-1)
+                        fn = "Helvetica-Bold" if is_header else "Helvetica"
+                        tc = rl_colors.grey if (r_idx < 2) else BLACK
+                        al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                        wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                    else:
+                        wrapped_row.append(cell)
+                wrapped_data.append(wrapped_row)
+
             ncols = len(hdr1)
             diag_w = 3.0 * inch
             col_w = [diag_w] + [(7.3 * inch - diag_w) / (ncols - 1)] * (ncols - 1)
-            t = Table(t_data, colWidths=col_w, repeatRows=2)
+            t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
                 ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -3174,10 +3462,25 @@ class PDFReportGenerator:
                 ]
             t_data.append(row)
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         ncols = len(hdr1)
         type_w = 2.3 * inch
         col_w = [type_w] + [(7.3 * inch - type_w) / (ncols - 1)] * (ncols - 1)
-        t = Table(t_data, colWidths=col_w, repeatRows=2)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
         style = [
             ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
             ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -3190,6 +3493,7 @@ class PDFReportGenerator:
             ("TOPPADDING",    (0,0), (-1,-1), 3),
             ("BOTTOMPADDING", (0,0), (-1,-1), 3),
             ("LEFTPADDING",   (0,0), (-1,-1), 4),
+            ("VALIGN",        (0,0), (-1,-1), "TOP"),
         ]
         for i, _ in enumerate(years):
             c = 1 + i * 3
@@ -3270,7 +3574,22 @@ class PDFReportGenerator:
         t_data.append(["Total", f"${sum_tot:,.0f}",
                         f"${(sum_tot/sum_n if sum_n else 0):,.0f}", f"{sum_n:,}"])
 
-        t = Table(t_data, colWidths=[2.5*inch, 1.6*inch, 1.6*inch, 1.6*inch])
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0 or r_idx == len(t_data)-1)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if (r_idx == 0) else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
+        t = Table(wrapped_data, colWidths=[2.5*inch, 1.6*inch, 1.6*inch, 1.6*inch])
         style = [
             ("BACKGROUND",    (0,0), (-1,0), LTBLUE),
             ("TEXTCOLOR",     (0,0), (-1,0), rl_colors.grey),
@@ -3467,8 +3786,23 @@ class PDFReportGenerator:
                 ])
             t_data.append(row)
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         col_widths = [1.5*inch] + [0.65*inch] * (len(years) * 3)
-        t = Table(t_data, colWidths=col_widths)
+        t = Table(wrapped_data, colWidths=col_widths)
         style = [
             ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
             ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -3478,6 +3812,7 @@ class PDFReportGenerator:
             ("ALIGN",         (0,0), (0,-1), "LEFT"),
             ("GRID",          (0,0), (-1,-1), 0.4, rl_colors.grey),
             ("SPAN",          (0,0), (0,1)),
+            ("VALIGN",        (0,0), (-1,-1), "TOP"),
         ]
         col_idx = 1
         for _ in years:
@@ -3643,10 +3978,25 @@ class PDFReportGenerator:
                 ]
             t_data.append(row)
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(t_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx < 2)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = rl_colors.grey if is_header else BLACK
+                    al = TA_LEFT if c_idx == 0 else TA_RIGHT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         ncols = len(hdr1)
         type_w = 1.3 * inch
         col_w = [type_w] + [(7.3 * inch - type_w) / (ncols - 1)] * (ncols - 1)
-        t = Table(t_data, colWidths=col_w, repeatRows=2)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=2)
         style = [
             ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
             ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -3776,8 +4126,23 @@ class PDFReportGenerator:
              "medical expenditures."],
         ]
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    al = TA_LEFT if c_idx > 0 else TA_CENTER
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=8, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         col_w = [1.2*inch, 6.1*inch]
-        t = Table(data, colWidths=col_w, repeatRows=1)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=1)
         t.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
             ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
@@ -3854,11 +4219,11 @@ class PDFReportGenerator:
              "Chapter XV (O00–O9A)",
              "Normal delivery, high-risk pregnancy, gestational diabetes, "
              "preeclampsia, cesarean delivery"],
-            ["Endocrine / Nutritional /\nMetabolic",
+            ["Endocrine / Nutritional / Metabolic",
              "Chapter IV (E00–E89)",
              "Diabetes mellitus type 1 & 2, obesity, hyperlipidemia, "
              "hypothyroidism, gout, metabolic syndrome"],
-            ["Mental & Behavioral\nDisorders",
+            ["Mental & Behavioral Disorders",
              "Chapter V (F01–F99)",
              "Depression, anxiety disorders, bipolar disorder, "
              "substance use disorders, ADHD, PTSD"],
@@ -3880,8 +4245,23 @@ class PDFReportGenerator:
              "pneumonia due to organism, Lyme disease"],
         ]
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    al = TA_LEFT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         col_w = [1.8*inch, 1.7*inch, 3.8*inch]
-        t = Table(data, colWidths=col_w, repeatRows=1)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=1)
         t.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
             ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
@@ -3967,8 +4347,23 @@ class PDFReportGenerator:
              "diabetic nephropathy."],
         ]
 
+        # Wrap data
+        wrapped_data = []
+        for r_idx, row in enumerate(data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    al = TA_LEFT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_data.append(wrapped_row)
+
         col_w = [1.7*inch, 1.8*inch, 3.8*inch]
-        t = Table(data, colWidths=col_w, repeatRows=1)
+        t = Table(wrapped_data, colWidths=col_w, repeatRows=1)
         t.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
             ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
@@ -4033,8 +4428,23 @@ class PDFReportGenerator:
              "COL — Colorectal Cancer\nScreening"],
         ]
 
+        # Wrap data
+        wrapped_elig = []
+        for r_idx, row in enumerate(elig_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    al = TA_LEFT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_elig.append(wrapped_row)
+
         col_w = [1.35*inch, 1.65*inch, 1.15*inch, 1.85*inch, 1.3*inch]
-        t_elig = Table(elig_data, colWidths=col_w, repeatRows=1)
+        t_elig = Table(wrapped_elig, colWidths=col_w, repeatRows=1)
         t_elig.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
             ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
@@ -4083,8 +4493,23 @@ class PDFReportGenerator:
              "74261, 74262, 74263"],
         ]
 
+        # Wrap data
+        wrapped_cpt = []
+        for r_idx, row in enumerate(cpt_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    al = TA_LEFT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_cpt.append(wrapped_row)
+
         col_w2 = [1.9*inch, 5.4*inch]
-        t_cpt = Table(cpt_data, colWidths=col_w2, repeatRows=1)
+        t_cpt = Table(wrapped_cpt, colWidths=col_w2, repeatRows=1)
         t_cpt.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
             ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
@@ -4119,7 +4544,22 @@ class PDFReportGenerator:
              "hospice enrollment during the measurement year."],
         ]
 
-        t_excl = Table(excl_data, colWidths=[1.5*inch, 5.8*inch], repeatRows=1)
+        # Wrap data
+        wrapped_excl = []
+        for r_idx, row in enumerate(excl_data):
+            wrapped_row = []
+            for c_idx, cell in enumerate(row):
+                if isinstance(cell, str) and cell:
+                    is_header = (r_idx == 0)
+                    fn = "Helvetica-Bold" if is_header else "Helvetica"
+                    tc = WHITE if is_header else BLACK
+                    al = TA_LEFT
+                    wrapped_row.append(self._wrap_cell(cell, font_name=fn, font_size=7, alignment=al, text_color=tc))
+                else:
+                    wrapped_row.append(cell)
+            wrapped_excl.append(wrapped_row)
+
+        t_excl = Table(wrapped_excl, colWidths=[1.5*inch, 5.8*inch], repeatRows=1)
         t_excl.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0), NAVY),
             ("TEXTCOLOR",     (0, 0), (-1, 0), WHITE),
