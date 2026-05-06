@@ -1869,7 +1869,7 @@ class PDFReportGenerator:
         hdr1 = ["Medical records\nCHRONIC CATEGORY"] + [y for y in years for _ in range(2)]
         hdr2 = [""] + ["Medical\nrecords\nTOTAL $", "Medical\nrecords N"] * len(years)
         t_data = [hdr1, hdr2]
-        for cat in cats_by_total:
+        for cat in cats_by_total[:5]:
             row = [cat]
             for y in years:
                 r = lookup.get((cat, y), {})
@@ -1902,7 +1902,7 @@ class PDFReportGenerator:
         hdr1m = ["Medical records\nCHRONIC CATEGORY"] + [y for y in years for _ in range(2)]
         hdr2m = [""] + ["Medical\nrecords\nMEAN $", "Medical\nrecords N"] * len(years)
         t_data_m = [hdr1m, hdr2m]
-        for cat in cats_by_mean:
+        for cat in cats_by_mean[:5]:
             row = [cat]
             for y in years:
                 r = lookup.get((cat, y), {})
@@ -1937,7 +1937,7 @@ class PDFReportGenerator:
 
         hdr_f  = ["Medical records\nCHRONIC CATEGORY"] + [f"Medical\nrecords N\n{y}" for y in years]
         t_data_f = [hdr_f]
-        for cat in cats_by_freq:
+        for cat in cats_by_freq[:5]:
             row = [cat]
             for y in years:
                 r = lookup.get((cat, y), {})
