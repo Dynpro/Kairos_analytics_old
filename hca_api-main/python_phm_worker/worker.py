@@ -322,8 +322,46 @@ class PHMWorker:
         # Parse years from report
         years_str = report.get("year", "")
         years = [int(y.strip()) for y in years_str.split(",") if y.strip().isdigit()]
+        
+        # Also include years from date ranges
+        date_years = set()
+        
+        def get_range_years(start_val, end_val):
+            if start_val and end_val:
+                try:
+                    # Handle strings (YYYY-MM-DD) or date objects
+                    s_str = str(start_val).split(" ")[0]
+                    e_str = str(end_val).split(" ")[0]
+                    
+                    s_yr = int(s_str.split("-")[0])
+                    e_yr = int(e_str.split("-")[0])
+                    
+                    return set(range(min(s_yr, e_yr), max(s_yr, e_yr) + 1))
+                except (ValueError, IndexError, AttributeError):
+                    pass
+            return set()
+
+        date_years.update(get_range_years(report.get("medical_start_date"), report.get("medical_end_date")))
+        date_years.update(get_range_years(report.get("pharmacy_start_date"), report.get("pharmacy_end_date")))
+
+        # Extract single years from any date field just in case
+        for key in ["medical_start_date", "medical_end_date", "pharmacy_start_date", "pharmacy_end_date"]:
+            dt = report.get(key)
+            if dt:
+                try:
+                    # Handle both string and date/datetime objects
+                    yr_val = str(dt).split("-")[0]
+                    if yr_val.isdigit():
+                        date_years.add(int(yr_val))
+                except (ValueError, IndexError):
+                    pass
+
+        years = sorted(list(set(years) | date_years))
+        
         if not years:
             years = [2025]  # Default to current year
+            
+        self.logger.info(f"Report {report.get('report_id')} years detected: {years}")
         
         # Create Snowflake connector
         snowflake = SnowflakeConnector(self.config.env_path)
@@ -410,7 +448,7 @@ class PHMWorker:
             report_id=report_id,
             report_name=report.get("report_name", "PHM Report"),
             client_name=client_name,
-            year=year,
+            years=years,
             charts=chart_data.get("charts", {}), # Pass full ChartData objects
             chart_files=chart_files,             # Keep image paths
             metadata=metadata,

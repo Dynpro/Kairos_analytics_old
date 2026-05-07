@@ -341,10 +341,12 @@ class PDFReportGenerator:
     # ── Public API ────────────────────────────────────────────────────────────
 
     def generate_pdf(self, report_id: int, report_name: str, client_name: str,
-                     year: int, charts: Dict[str, ChartData],
+                     years: List[int], charts: Dict[str, ChartData],
                      chart_files: Dict[str, str],
                      metadata: Optional[Dict[str, Any]] = None) -> Optional[str]:
-        fp = self.output_dir / f"PHM_Report_{report_id}_{year}.pdf"
+        self.report_years = sorted([str(y) for y in years])
+        year_display = years[-1] if years else 2025
+        fp = self.output_dir / f"PHM_Report_{report_id}_{year_display}.pdf"
         try:
             doc = _DocTemplate(str(fp), pagesize=letter,
                                leftMargin=0.6*inch, rightMargin=0.6*inch,
@@ -997,7 +999,7 @@ class PDFReportGenerator:
 
     def _pivot_risk_data(self, rows) -> Table:
         """Pivot risk group rows into Year columns."""
-        years = sorted({str(r.get("FILE_YEAR", "")) for r in rows})
+        years = self.report_years
         groups = sorted({str(r.get("RISK_GROUP", "")) for r in rows})
         # Build lookup
         lookup: Dict[tuple, dict] = {}
@@ -1348,19 +1350,29 @@ class PDFReportGenerator:
         
         cd_med = charts.get("med_by_year")
         if cd_med and cd_med.data:
-            years = [str(r["YR"]) for r in cd_med.data]
-            tot = [float(r["TOTAL_AMT"] or 0) for r in cd_med.data]
-            mean = [float(r["MEAN_AMT"] or 0) for r in cd_med.data]
-            n_val = [int(r["N"] or 0) for r in cd_med.data]
+            years = self.report_years
+            lookup = {str(r["YR"]): r for r in cd_med.data}
             
             # Table
             t_data = [["Medical records\nReporting Year", "Medical records\nTOTAL $", "Medical records\nMEAN $", "Medical records\nN"]]
             sum_tot = 0
             sum_n = 0
-            for i, y in enumerate(years):
-                t_data.append([y, f"${tot[i]:,.0f}", f"${mean[i]:,.0f}", f"{n_val[i]:,}"])
-                sum_tot += tot[i]
-                sum_n += n_val[i]
+            tot = []
+            n_val = []
+            mean = []
+            
+            for y in years:
+                r = lookup.get(y, {})
+                t_v = float(r.get("TOTAL_AMT") or 0)
+                n_v = int(r.get("N") or 0)
+                m_v = float(r.get("MEAN_AMT") or (t_v / n_v if n_v > 0 else 0))
+                
+                t_data.append([y, f"${t_v:,.0f}", f"${m_v:,.0f}", f"{n_v:,}"])
+                sum_tot += t_v
+                sum_n += n_v
+                tot.append(t_v)
+                n_val.append(n_v)
+                mean.append(m_v)
 
             t_data.append(["Total", f"${sum_tot:,.0f}", f"${(sum_tot/sum_n if sum_n else 0):,.0f}", f"{sum_n:,}"])
 
@@ -1732,7 +1744,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No diagnostic category data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("YR", "")) for r in cd.data})
+        years = self.report_years
 
         # --- Total $ pivot table ---
         story.append(Paragraph("<b>Total Amount Paid - Diagnostic Category - Total Population</b>",
@@ -1943,7 +1955,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No chronic disease data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("FILE_YEAR", "")) for r in cd.data})
+        years = self.report_years
 
         lookup: Dict[tuple, dict] = {}
         for r in cd.data:
@@ -2555,7 +2567,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 0.2*inch))
 
         # Chart: total $ per risk group (summed across years)
-        years = sorted({str(r.get("FILE_YEAR", "")) for r in cd.data})
+        years = self.report_years
         groups = sorted({str(r.get("RISK_GROUP", "")) for r in cd.data})
         lookup: Dict[tuple, dict] = {}
         for r in cd.data:
@@ -2620,7 +2632,7 @@ class PDFReportGenerator:
         if not cd or not cd.data:
             story.append(Paragraph("No lifestyle-modifiable expenditure data available.", self.S["Body"]))
         else:
-            years = sorted({str(r.get("YR", "")) for r in cd.data})
+            years = self.report_years
             cats = []
             seen: set = set()
             for r in sorted(cd.data, key=lambda x: -float(x.get("TOTAL_AMT") or 0)):
@@ -2748,7 +2760,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No health disparities data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("YR", "")) for r in cd.data})
+        years = self.report_years
         # Top 10 categories by frequency (N)
         cat_n: Dict[str, int] = {}
         for r in cd.data:
@@ -2941,7 +2953,7 @@ class PDFReportGenerator:
         if not cd or not cd.data:
             story.append(Paragraph("No preventive screening value data available.", self.S["Body"]))
         else:
-            years = sorted({str(r.get("YEAR", "")) for r in cd.data})
+            years = self.report_years
             cancers = sorted({str(r.get("CANCER_SCREENING", "")) for r in cd.data})
             lookup: Dict[tuple, dict] = {}
             for r in cd.data:
@@ -3032,7 +3044,7 @@ class PDFReportGenerator:
         if not cd or not cd.data:
             story.append(Paragraph("No work-related musculoskeletal data available.", self.S["Body"]))
         else:
-            years = sorted({str(r.get("YR", "")) for r in cd.data})
+            years = self.report_years
             parts = []
             seen: set = set()
             for r in sorted(cd.data, key=lambda x: -float(x.get("TOTAL_AMT") or 0)):
@@ -3231,7 +3243,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No inpatient/outpatient/ER data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("YR", "")) for r in cd.data})
+        years = self.report_years
         types = ["Inpatient", "Outpatient", "Emergency Room"]
 
         lookup: Dict[tuple, dict] = {}
@@ -3336,7 +3348,7 @@ class PDFReportGenerator:
         if not cd or not cd.data:
             story.append(Paragraph("No avoidable ER visit data available for the selected years.", self.S["Body"]))
         else:
-            years = sorted({str(r.get("YR", "")) for r in cd.data})
+            years = self.report_years
             diags = []
             seen: set = set()
             for r in sorted(cd.data, key=lambda x: -float(x.get("TOTAL_AMT") or 0)):
@@ -3453,7 +3465,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No PCP/Specialty data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("YR", "")) for r in cd.data})
+        years = self.report_years
         classes = ["Primary Care Physician Services", "Other/Specialty Services"]
 
         lookup: Dict[tuple, dict] = {}
@@ -3763,7 +3775,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No pharmacy relationship data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("YR", "")) for r in cd.data})
+        years = self.report_years
         rels = ["EMPLOYEE", "SPOUSE", "DEPENDENT"]
 
         data_by_rel: Dict[str, Dict[str, list]] = {
@@ -4003,7 +4015,7 @@ class PDFReportGenerator:
             story.append(Paragraph("No brand/generic data available.", self.S["Body"]))
             return
 
-        years = sorted({str(r.get("YR", "")) for r in cd.data})
+        years = self.report_years
         types = ["BRAND", "GENERIC"]
 
         lookup: Dict[tuple, dict] = {}
