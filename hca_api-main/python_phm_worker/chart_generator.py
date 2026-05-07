@@ -1022,7 +1022,9 @@ class PDFReportGenerator:
             data.append(row)
 
         ncols = len(header1)
-        col_w = [1.1*inch] + [0.87*inch]*(ncols-1)
+        first_w = 1.1 * inch
+        rest_w = max(0.5 * inch, (7.3 * inch - first_w) / max(ncols - 1, 1))
+        col_w = [first_w] + [rest_w] * (ncols - 1)
         t = Table(data, colWidths=col_w, repeatRows=2)
         style = [
             ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
@@ -1578,9 +1580,12 @@ class PDFReportGenerator:
                         wrapped_row.append(cell)
                 wrapped_data.append(wrapped_row)
 
-            col_widths = [1.5*inch] + [0.65*inch] * (len(years) * 3)
+            _first_w = 1.5 * inch
+            _n_data_cols = len(years) * 3
+            _data_col_w = max(0.45 * inch, (7.3 * inch - _first_w) / max(_n_data_cols, 1))
+            col_widths = [_first_w] + [_data_col_w] * _n_data_cols
             t = Table(wrapped_data, colWidths=col_widths)
-            
+
             style = [
                 ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
                 ("TEXTCOLOR",     (0,0), (-1,1), rl_colors.grey),
@@ -3825,7 +3830,10 @@ class PDFReportGenerator:
                     wrapped_row.append(cell)
             wrapped_data.append(wrapped_row)
 
-        col_widths = [1.5*inch] + [0.65*inch] * (len(years) * 3)
+        _first_w = 1.5 * inch
+        _n_data_cols = len(years) * 3
+        _data_col_w = max(0.45 * inch, (7.3 * inch - _first_w) / max(_n_data_cols, 1))
+        col_widths = [_first_w] + [_data_col_w] * _n_data_cols
         t = Table(wrapped_data, colWidths=col_widths)
         style = [
             ("BACKGROUND",    (0,0), (-1,1), LTBLUE),
