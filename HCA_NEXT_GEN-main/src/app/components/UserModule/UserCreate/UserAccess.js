@@ -113,8 +113,8 @@ export default function UserAccess() {
         'report_view',
       ])}
 
-      {/* Generate Reports */}
-      {renderFormGroup('Generate Reports', 'generate_report', [
+      {/* PHM Reports */}
+      {renderFormGroup('PHM Reports', 'generate_report', [
         'generate_report_add',
         'generate_report_edit',
         'generate_report_delete',

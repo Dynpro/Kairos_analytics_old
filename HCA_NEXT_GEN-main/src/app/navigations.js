@@ -159,4 +159,16 @@ export const transformArray = (clients, folderObj, dashboardObj, subFolderObj, c
   return transformedClients;
 };
 
-export const navigations = [{ name: 'Dashboard', path: '/dashboard', icon: 'dashboard' }];
+export const navigations = [
+  { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
+  {
+    name: 'PHM Reports',
+    icon: 'assignment',
+    path: '/generate_reports/tab_list',
+  },
+  {
+    name: 'Reports',
+    icon: 'folder',
+    path: '/reports/reportsList',
+  },
+];

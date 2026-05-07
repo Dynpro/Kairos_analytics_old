@@ -1,4 +1,4 @@
-import { Button, Grid, styled } from '@mui/material';
+import { Button, Grid, Icon, IconButton, styled } from '@mui/material';
 import axios from 'axios';
 import { useEffect, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,6 @@ import SnackbarUtils from 'SnackbarUtils';
 import { SimpleCard } from 'app/components';
 import commonRoutes from 'app/components/commonRoutes';
 import { getAccessToken } from 'app/utils/utils';
-import { useSelector } from 'react-redux';
 import AppTableSearchBox from '../ReusableComponents/AppTableSearchBox';
 import commonConfig from '../commonConfig';
 import PaginationTable from './AppPaginateGenerateReports';
@@ -60,19 +59,7 @@ const AppGenerateReportsList = () => {
   const navigate = useNavigate();
   const requestSearch = (searchedVal) =>
     state.data.filter((row) => {
-      return (
-        row.name +
-        ' ' +
-        row.year +
-        ' ' +
-        row.reporting_year +
-        ' ' +
-        row.frequency +
-        ' ' +
-        row.folder_name +
-        ' ' +
-        row.looks_generated
-      )
+      return (row.name + ' ' + row.client_name + ' ' + row.frequency + ' ' + row.looks_generated)
         .toLowerCase()
         .includes(searchedVal.toLowerCase());
     });
@@ -91,19 +78,19 @@ const AppGenerateReportsList = () => {
       if (response && response['data'] && response['data']['Response']) {
         dispatch({
           type: 'DATA_CHANGED',
-          //         newData: response['data']['Response'],
           newData: response.data?.Response.map((item) => ({
             ...item,
             frequency:
               item.frequency === 1
-                ? 'once'
+                ? 'Once'
                 : item.frequency === 2
-                ? 'weekly'
+                ? 'Weekly'
                 : item.frequency === 3
-                ? 'monthly'
+                ? 'Monthly'
                 : item.frequency === 4
-                ? 'quarterly'
+                ? 'Quarterly'
                 : item.frequency,
+            raw_looks_generated: item.looks_generated,
             looks_generated:
               item.looks_generated === 0 || item.looks_generated === 1 || item.looks_generated === 2
                 ? 'started'
@@ -116,6 +103,12 @@ const AppGenerateReportsList = () => {
                 : item.looks_generated === 7
                 ? 'failed'
                 : item.looks_generated,
+            reporting_year:
+              item.reporting_year === 'service' || item.reporting_year === 'Service'
+                ? 'Service'
+                : item.reporting_year === 'paid' || item.reporting_year === 'Paid'
+                ? 'Paid'
+                : item.reporting_year,
           })),
         });
       }
@@ -124,6 +117,7 @@ const AppGenerateReportsList = () => {
       SnackbarUtils.error(error?.message || 'Something went wrong');
     }
   };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -131,18 +125,10 @@ const AppGenerateReportsList = () => {
   const handleSearch = (e) => {
     dispatch({ type: 'PAGE_CHANGED', no: 0 });
     dispatch({ type: 'SEARCHED', newVal: e.currentTarget.value });
-
-    if (state.searched) {
-      requestSearch(state.searched);
-    }
   };
 
-  const generateReportsViewPermission = useSelector(
-    (state) => state.userAccessPermissions?.userPermissions?.generate_report_view
-  );
-  const generateReportsCreatePermission = useSelector(
-    (state) => state.userAccessPermissions?.userPermissions?.generate_report_add
-  );
+  const generateReportsViewPermission = 1;
+  const generateReportsCreatePermission = 1;
 
   return (
     <Container>
@@ -156,9 +142,14 @@ const AppGenerateReportsList = () => {
                   fontWeight: '500',
                   textTransform: 'capitalize',
                   marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
               >
                 PHM Reports List
+                <IconButton size="small" onClick={fetchData} sx={{ ml: 1 }}>
+                  <Icon sx={{ fontSize: '1.2rem' }}>refresh</Icon>
+                </IconButton>
               </span>
             </Grid>
             <Grid item xs={12} sm={3} md={3} lg={2}>
@@ -176,6 +167,7 @@ const AppGenerateReportsList = () => {
             </Grid>
           </Grid>
           <PaginationTable
+            deleted={state.deleted}
             fetchData={fetchData}
             data={state.searched ? requestSearch(state.searched) : state.data}
             page={state.page}

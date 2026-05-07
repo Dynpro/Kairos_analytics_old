@@ -43,7 +43,7 @@ export default function AppGenerateReportsSplitList() {
   return (
     <>
       <Box className="breadcrumb" sx={{ m: 1 }}>
-        <Breadcrumb routeSegments={[{ name: 'Generate Reports' }]} />
+        <Breadcrumb routeSegments={[{ name: 'PHM Reports' }]} />
       </Box>
       <Box sx={{ width: '100%' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>

@@ -1,17 +1,28 @@
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Box,
+  Button,
+  Card,
+  Grid,
+  Icon,
+  IconButton,
+  MenuItem,
+  styled,
+  TextField,
+  Typography
+} from '@mui/material';
 import axios from 'axios';
-import { Formik } from 'formik';
+import { FieldArray, Formik } from 'formik';
 import { useState } from 'react';
-import * as Yup from 'yup';
-
-import { Box, Card, MenuItem, styled } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-
-import commonConfig from 'app/components/commonConfig';
-import commonRoutes from 'app/components/commonRoutes';
-import AppAutocompleteGReports from '../AppAutocompleteGReports';
+import * as Yup from 'yup';
 
 import SnackbarUtils from 'SnackbarUtils';
 import { Breadcrumb } from 'app/components';
+import commonConfig from 'app/components/commonConfig';
+import commonRoutes from 'app/components/commonRoutes';
 import AppGoBackBtn from 'app/components/ReusableComponents/AppGoBackBtn';
 import AppthemeLoadingBtn from 'app/components/ReusableComponents/AppThemeLoadingBtn';
 import AppThemeTextField from 'app/components/ReusableComponents/AppThemeTextField';
@@ -23,62 +34,79 @@ const Container = styled('div')(({ theme }) => ({
   [theme.breakpoints.down('sm')]: { margin: '16px' },
 }));
 
+const StyledCard = styled(Card)(({ theme }) => ({
+  padding: '24px',
+  width: '100%',
+}));
+
+const SectionHeader = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%',
+}));
+
 const initialValues = {
-  client_id: '',
-  client_name: '',
-  folder_name: '',
-  schema_name: '',
-  frequency: null,
-  reporting_year: '',
-  years: [],
+  report_name: '',
+  client_data: '',
+  report_type: 'PHM',
+  medical_start_date: '',
+  medical_end_date: '',
+  pharmacy_start_date: '',
+  pharmacy_end_date: '',
+  frequency: 1,
+  reporting_year: 'Service',
+  sections: [{ title: 'Section 1', content: '' }],
 };
 
 const validationSchema = Yup.object().shape({
-  folder_name: Yup.string().required('Kindly select a Client').label('Client Name'),
-  frequency: Yup.number().required('Kindly select frequency').label('Frequency').nullable(),
-  years: Yup.array().min(1, 'Kindly select atleast one Year'),
-  reporting_year: Yup.string().required('Kindly select a Reporting Year').label('Reporting Year'),
+  report_name: Yup.string().required('Report Name is required'),
+  client_data: Yup.string().required('Client is required'),
+  medical_start_date: Yup.string().required('Required'),
+  medical_end_date: Yup.string().required('Required'),
+  pharmacy_start_date: Yup.string().required('Required'),
+  pharmacy_end_date: Yup.string().required('Required'),
 });
 
 export default function CreateGenerateReports() {
   const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const authToken = getAccessToken();
 
   const { data: phmClientList } = useApiOnce(commonConfig.urls.phmAutomationClientList);
-  const { data: phmYearList } = useApiOnce(
-    `${commonConfig.urls.phmAutomationYearList}?schema_name=SCH_ALL_HEALTH_CHOICE`
-  );
-  const reportYearList = ['Service', 'Paid'];
-  const FrequencyList = [
-    { val: 1, type: 'Once' },
-    { val: 2, type: 'Weekly' },
-    { val: 3, type: 'Monthly' },
-    { val: 4, type: 'Quaterly' },
-  ];
 
-  const verifyErrors = (errors, touched, fieldName) => {
-    if (Boolean(touched[fieldName] && errors[fieldName]))
-      return <div style={{ color: 'red' }}>* {errors[fieldName]}</div>;
-    return null;
-  };
+  const reportTypeList = ['PHM', 'Patient Summary'];
 
-  async function sendDataToServer(data) {
-    const authToken = getAccessToken();
+  async function handleSubmit(values) {
+    const [client_name, client_id, schema_name] = values.client_data.split('/');
+    
+    const payload = {
+      report_name: values.report_name,
+      client_id,
+      client_name,
+      schema_name,
+      report_type: values.report_type,
+      medical_start_date: values.medical_start_date,
+      medical_end_date: values.medical_end_date,
+      pharmacy_start_date: values.pharmacy_start_date,
+      pharmacy_end_date: values.pharmacy_end_date,
+      frequency: values.frequency,
+      reporting_year: values.reporting_year,
+      sections: values.sections,
+      years: [new Date(values.medical_start_date).getFullYear()], // Compatibility with old system
+    };
+
     try {
       setLoading(true);
-      const response = await axios.post(commonConfig.urls.phmAutomationStoreReportRequest, data, {
+      const response = await axios.post(commonConfig.urls.phmAutomationStoreReportRequest, payload, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setLoading(false);
-      if (response && response.data.Status === 'Failed') {
-        SnackbarUtils.error(Object.values(response.data.Errors).map((item) => item.toString()));
-      }
       if (response && response.data.Status === 'Success') {
         SnackbarUtils.success(response.data.Message);
-
-        setOpen(true);
         navigate(commonRoutes.generate_reports.generate_reportsTabList);
+      } else {
+        SnackbarUtils.error(response.data.Message || 'Failed to save report');
       }
     } catch (error) {
       setLoading(false);
@@ -87,8 +115,8 @@ export default function CreateGenerateReports() {
   }
 
   return (
-    <>
-      <Box className="breadcrumb" sx={{ m: 1 }}>
+    <Container>
+      <Box className="breadcrumb" sx={{ mb: 3 }}>
         <Breadcrumb
           routeSegments={[
             { name: 'Reports List', path: commonRoutes.generate_reports.generate_reportsTabList },
@@ -97,141 +125,183 @@ export default function CreateGenerateReports() {
         />
       </Box>
 
-      <Container sx={{ display: 'flex', justifyContent: 'center' }}>
-        <Formik
-          enableReinitialize={true}
-          initialValues={initialValues}
-          validationSchema={validationSchema}
-          onSubmit={(values) => {
-            const splitFolderName = values.folder_name;
-            const [client_name, client_id, schema_name] = splitFolderName.split('/');
-            sendDataToServer({
-              client_id,
-              client_name,
-              schema_name: schema_name,
-              frequency: values.frequency,
-              reporting_year: values.reporting_year,
-              years: values.years,
-            });
-          }}
-        >
-          {({
-            errors,
-            touched,
-            values,
-            handleBlur,
-            handleChange,
-            handleSubmit,
-            setFieldTouched,
-            setFieldValue,
-          }) => {
-            return (
-              <Card sx={{ px: 3, pt: 1, pb: 2, width: '100%', maxWidth: '700px' }}>
-                <Box
-                  component="form"
-                  sx={{
-                    '& .MuiTextField-root': { my: 1, width: '25ch' },
-                    width: '100%',
-                  }}
-                  noValidate
-                  autoComplete="off"
-                >
-                  <div>
-                    <AppThemeTextField
-                      defaultValue={''}
-                      id="folder_name"
-                      name="folder_name"
-                      value={values.folder_name || ''}
-                      style={{ width: '100%' }}
-                      select
-                      label="Clients"
-                      placeholder="Select Clients"
-                      error={Boolean(errors.folder_name && touched.folder_name)}
-                      onChange={(e) => {
-                        setFieldValue('schema_name', e.target.value.split('/')[2]);
-                        setFieldValue('folder_name', e.target.value);
-                      }}
-                      onBlur={handleBlur}
-                    >
-                      {phmClientList.map((option, index) => (
-                        <MenuItem
-                          key={index}
-                          value={
-                            option.folder_name +
-                            '/' +
-                            option.phm_folder_id +
-                            '/' +
-                            option.schema_name
-                          }
+      <Formik
+        initialValues={initialValues}
+        validationSchema={validationSchema}
+        onSubmit={handleSubmit}
+      >
+        {({ values, errors, touched, handleChange, handleBlur, setFieldValue, handleSubmit }) => (
+          <form onSubmit={handleSubmit}>
+            <StyledCard>
+              <Grid container spacing={3}>
+                {/* Row 1: Basic Info */}
+                <Grid item xs={12} md={4}>
+                  <AppThemeTextField
+                    fullWidth
+                    name="report_name"
+                    label="Report Name"
+                    placeholder="Enter Report Name"
+                    value={values.report_name}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={Boolean(touched.report_name && errors.report_name)}
+                    helperText={touched.report_name && errors.report_name}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <AppThemeTextField
+                    fullWidth
+                    select
+                    name="client_data"
+                    label="Client Name"
+                    value={values.client_data}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={Boolean(touched.client_data && errors.client_data)}
+                  >
+                    {phmClientList.map((option, index) => (
+                      <MenuItem
+                        key={index}
+                        value={`${option.folder_name}/${option.phm_folder_id}/${option.schema_name}`}
+                      >
+                        {option.folder_name}
+                      </MenuItem>
+                    ))}
+                  </AppThemeTextField>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <AppThemeTextField
+                    fullWidth
+                    select
+                    name="report_type"
+                    label="Report Type"
+                    value={values.report_type}
+                    onChange={handleChange}
+                  >
+                    {reportTypeList.map((type) => (
+                      <MenuItem key={type} value={type}>
+                        {type}
+                      </MenuItem>
+                    ))}
+                  </AppThemeTextField>
+                </Grid>
+
+                {/* Row 2: Medical Dates */}
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    name="medical_start_date"
+                    label="Med Start Date"
+                    InputLabelProps={{ shrink: true }}
+                    value={values.medical_start_date}
+                    onChange={handleChange}
+                    error={Boolean(touched.medical_start_date && errors.medical_start_date)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    name="medical_end_date"
+                    label="Med End Date"
+                    InputLabelProps={{ shrink: true }}
+                    value={values.medical_end_date}
+                    onChange={handleChange}
+                    error={Boolean(touched.medical_end_date && errors.medical_end_date)}
+                  />
+                </Grid>
+
+                {/* Row 3: Pharmacy Dates */}
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    name="pharmacy_start_date"
+                    label="Pharma Start Date"
+                    InputLabelProps={{ shrink: true }}
+                    value={values.pharmacy_start_date}
+                    onChange={handleChange}
+                    error={Boolean(touched.pharmacy_start_date && errors.pharmacy_start_date)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    name="pharmacy_end_date"
+                    label="Pharma End Date"
+                    InputLabelProps={{ shrink: true }}
+                    value={values.pharmacy_end_date}
+                    onChange={handleChange}
+                    error={Boolean(touched.pharmacy_end_date && errors.pharmacy_end_date)}
+                  />
+                </Grid>
+
+                {/* Section List */}
+                <Grid item xs={12}>
+                  <FieldArray name="sections">
+                    {({ push, remove }) => (
+                      <Box>
+                        {values.sections.map((section, index) => (
+                          <Accordion key={index} sx={{ mb: 2, border: '1px solid #ddd' }}>
+                            <AccordionSummary expandIcon={<Icon>expand_more</Icon>}>
+                              <SectionHeader>
+                                <Typography sx={{ color: '#1976d2', fontWeight: 600 }}>
+                                  {section.title || `Section ${index + 1}`}
+                                </Typography>
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    remove(index);
+                                  }}
+                                >
+                                  <Icon color="error">delete</Icon>
+                                </IconButton>
+                              </SectionHeader>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <AppThemeTextField
+                                fullWidth
+                                label="Section Title"
+                                name={`sections.${index}.title`}
+                                value={section.title}
+                                onChange={handleChange}
+                              />
+                            </AccordionDetails>
+                          </Accordion>
+                        ))}
+                        <Button
+                          variant="contained"
+                          startIcon={<Icon>add_circle</Icon>}
+                          onClick={() => push({ title: `Section ${values.sections.length + 1}`, content: '' })}
+                          sx={{ mt: 1, textTransform: 'none' }}
                         >
-                          {option.folder_name}
-                        </MenuItem>
-                      ))}
-                    </AppThemeTextField>
-                    {verifyErrors(errors, touched, 'folder_name')}
-                  </div>
-                  <div>
-                    <AppThemeTextField
-                      defaultValue={''}
-                      id="reporting_year"
-                      name="reporting_year"
-                      value={values.reporting_year || ''}
-                      style={{ width: '100%' }}
-                      select
-                      label="Reporting Year"
-                      placeholder="Select Reporting Year"
-                      onChange={handleChange('reporting_year')}
-                      onBlur={handleBlur}
-                      error={Boolean(errors.reporting_year && touched.reporting_year)}
-                    >
-                      {reportYearList.map((option, index) => (
-                        <MenuItem key={index} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </AppThemeTextField>
-                    {verifyErrors(errors, touched, 'reporting_year')}
-                  </div>
-                  <div>
-                    <AppThemeTextField
-                      defaultValue={''}
-                      id="frequency"
-                      name="frequency"
-                      value={values.frequency || ''}
-                      style={{ width: '100%' }}
-                      select
-                      label="Frequency"
-                      placeholder="Select Frequency"
-                      onChange={handleChange('frequency')}
-                      onBlur={handleBlur}
-                      error={Boolean(errors.frequency && touched.frequency)}
-                    >
-                      {FrequencyList.map((option, index) => (
-                        <MenuItem key={index} value={option.val}>
-                          {option.type}
-                        </MenuItem>
-                      ))}
-                    </AppThemeTextField>
-                    {verifyErrors(errors, touched, 'frequency')}
-                  </div>
-                  <AppAutocompleteGReports items={phmYearList} />
-                  {verifyErrors(errors, touched, 'years')}
+                          Add Section
+                        </Button>
+                      </Box>
+                    )}
+                  </FieldArray>
+                </Grid>
+
+                {/* Actions */}
+                <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
+                  <AppGoBackBtn />
                   <AppthemeLoadingBtn
                     type="submit"
                     loading={loading}
                     variant="contained"
-                    sx={{ my: 2 }}
-                    onClick={handleSubmit}
+                    sx={{ backgroundColor: '#2e7d32', '&:hover': { backgroundColor: '#1b5e20' } }}
                   >
-                    Submit
+                    Save Report
                   </AppthemeLoadingBtn>
-                  <AppGoBackBtn />
-                </Box>
-              </Card>
-            );
-          }}
-        </Formik>
-      </Container>
-    </>
+                </Grid>
+              </Grid>
+            </StyledCard>
+          </form>
+        )}
+      </Formik>
+    </Container>
   );
 }

@@ -1,5 +1,5 @@
 const serverIp = '23.23.207.67';
-const baseURL = 'https://hca.dynprocloud.com/api';
+const baseURL = 'http://localhost:8000/api';
 
 const commonConfig = {
   tokens: {
@@ -71,6 +71,9 @@ const commonConfig = {
     phmAutomationStoreReportRequest: `${baseURL}/phm_automation_store`,
     phmAutomationDeleteReportRequest: `${baseURL}/phm_automation_destroy`,
     phmAutomationDownloadReport: `${baseURL}/phm_automation_download`,
+    phmAutomationShowReport: `${baseURL}/phm_automation_show`,
+    phmAutomationRetryReport: `${baseURL}/phm_automation_retry`,
+    phmAutomationUpdateReport: `${baseURL}/phm_automation_update`,
     psAutomationReportList: `${baseURL}/ps_automation_report_list`,
     psAutomationClientList: `${baseURL}/ps_automation_client_list`,
     psAutomationCreatePatientList: `${baseURL}/ps_automation_patient_list`,

@@ -294,7 +294,7 @@ const Sidenav = ({ children }) => {
             },
             ...searchResult,
             { name: 'Download Dashboard', path: '/dashboard-download', icon: 'download', level: 0 },
-            { name: 'PHM Reports', path: '/reports', icon: 'assessment', level: 0 },
+            { name: 'PHM Reports', path: '/splitGenerateReports', icon: 'assignment', level: 0 },
           ]}
         />
       </StyledScrollBar>
