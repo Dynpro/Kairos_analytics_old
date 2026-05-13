@@ -363,6 +363,7 @@ class PDFReportGenerator:
 
             # 3. Executive Summary
             self._executive_summary(story, charts)
+            story.append(PageBreak())
 
             # 4. Sections 2, 3, 4
             self._section_2_demographics(story, charts)
@@ -585,9 +586,6 @@ class PDFReportGenerator:
             "<i>**N is a statistical notation that identifies the number of people in a population. Throughout this report, it is used to indicate the number of individuals incorporated into each analysis.</i>",
             self.S["Body"]
         ))
-        
-        story.append(PageBreak())
-
         # Page 4
         risk_cd = charts.get("risk_groups")
         if risk_cd and risk_cd.data:
@@ -653,8 +651,6 @@ class PDFReportGenerator:
 
             story.append(Paragraph("The top 3 most frequent chronic diseases across populations were:", self.S["Body"]))
             story.append(Spacer(1, 0.1*inch))
-            
-            story.append(PageBreak()) # Next page for the freq table according to Image 3 (Page 5)
             
             # Freq table
             cat_n_totals: Dict[str, int] = {}
@@ -798,7 +794,6 @@ class PDFReportGenerator:
             "home and monitor on-going compliance to these directions; this strategy also impacts the spouse and "
             "dependent children."
         )
-        story.append(PageBreak())
         
         story.append(Paragraph(kf2_post, self.S["Body"]))
         story.append(Spacer(1, 0.2*inch))
@@ -908,8 +903,6 @@ class PDFReportGenerator:
         ]
         
         for g_title, g_bullets in goals:
-            if "Goal 2:" in g_title:
-                story.append(PageBreak())
             story.append(Paragraph(g_title, self.S["Body"]))
             if g_bullets:
                 story.append(Spacer(1, 0.05*inch))
@@ -1071,7 +1064,7 @@ class PDFReportGenerator:
             ]))
             story.append(t_msk)
             
-        story.append(PageBreak())
+        # story.append(PageBreak())
 
     def _pivot_risk_data(self, rows) -> Table:
         """Pivot risk group rows into Year columns."""
@@ -1368,7 +1361,7 @@ class PDFReportGenerator:
                 story.append(RLImage(img2, width=7.0*inch, height=3.5*inch))
                 story.append(Spacer(1, 0.2*inch))
 
-        story.append(PageBreak())
+        # story.append(PageBreak())
 
         # Chart 3: Number of Individuals by Age Group
         story.append(Paragraph("Number of Individuals by Age - Total Population (Employee, Spouse & Dependent):", self.S["Body"]))
@@ -1540,7 +1533,7 @@ class PDFReportGenerator:
                 story.append(RLImage(img_tot, width=7.0*inch, height=3.5*inch))
                 story.append(Spacer(1, 0.2*inch))
                 
-            story.append(PageBreak())
+            # story.append(PageBreak())
             
             # Chart 2: Mean
             story.append(Paragraph("<b>Mean Amount Paid - Medical - Total Population</b>", ParagraphStyle("cen", parent=self.S["Body"], alignment=1)))
@@ -1962,7 +1955,7 @@ class PDFReportGenerator:
             story.append(RLImage(img_tot, width=7.0*inch, height=3.5*inch))
             story.append(Spacer(1, 0.2*inch))
 
-        story.append(PageBreak())
+        # story.append(PageBreak())
 
         # --- Mean $ pivot table ---
         story.append(Paragraph("<b>Mean Amount Paid - Diagnostic Category - Total Population</b>",
@@ -2350,7 +2343,7 @@ class PDFReportGenerator:
                 story.append(RLImage(img_comp, width=7.0*inch, height=3.0*inch))
                 story.append(Spacer(1, 0.15*inch))
 
-        story.append(PageBreak())
+        # story.append(PageBreak())
 
         # --- Co-morbidities chart ---
         story.append(Paragraph(
@@ -3786,7 +3779,7 @@ class PDFReportGenerator:
             story.append(RLImage(img_tot, width=7.0*inch, height=3.5*inch))
             story.append(Spacer(1, 0.2*inch))
 
-        story.append(PageBreak())
+        # story.append(PageBreak())
 
         # Mean chart
         story.append(Paragraph("<b>Mean Amount Paid - Pharmacy - Total Population</b>",
