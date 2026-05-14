@@ -427,8 +427,19 @@ class PHMWorker:
         
         generator = PDFReportGenerator(output_dir)
         
-        # Get client name
+        # Get real client name from database
         client_name = report.get("name", "Unknown Client")
+        phm_folder_id = report.get("phm_folder_id")
+        if phm_folder_id:
+            try:
+                with self.db_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT folder_name FROM client_folder_mapping WHERE folder_id = %s LIMIT 1", (phm_folder_id,))
+                        row = cur.fetchone()
+                        if row and row.get("folder_name"):
+                            client_name = row["folder_name"]
+            except Exception as e:
+                self.logger.warning(f"Could not fetch real client name for {phm_folder_id}: {e}")
         
         # Get reporting year
         years = chart_data.get("years", [2025])
