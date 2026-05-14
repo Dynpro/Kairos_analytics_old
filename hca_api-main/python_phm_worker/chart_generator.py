@@ -382,7 +382,7 @@ class PDFReportGenerator:
             story = []
 
             # 1. Cover page
-            self._cover(story, client_name, metadata)
+            self._cover(story, client_name, report_name, metadata)
 
             # 2. Table of Contents
             story.append(self._section_header_table("Table of Contents"))
@@ -467,9 +467,9 @@ class PDFReportGenerator:
             self.logger.error(f"PDF generation failed: {e}", exc_info=True)
             return None
 
-    def _cover(self, story, client_name: str, meta: Optional[dict]):
+    def _cover(self, story, client_name: str, report_name: str, meta: Optional[dict]):
         story.append(Spacer(1, 1.5*inch))
-        story.append(Paragraph("AllHealth CHOICE", self.S["CoverTitle"]))
+        story.append(Paragraph(client_name, self.S["CoverTitle"]))
         story.append(Spacer(1, 0.2*inch))
         story.append(HRFlowable(width="80%", thickness=2, color=TEAL, hAlign="CENTER"))
         story.append(Spacer(1, 0.2*inch))
@@ -486,7 +486,7 @@ class PDFReportGenerator:
                 story.append(Paragraph(f"Pharmacy Data: {ps} to {pe}", self.S["CoverSub"]))
         story.append(Spacer(1, 0.5*inch))
         story.append(Paragraph("Prepared for:", self.S["CoverSub"]))
-        story.append(Paragraph(client_name, self.S["CoverClient"]))
+        story.append(Paragraph(report_name, self.S["CoverClient"]))
         story.append(PageBreak())
 
     def _section_header_table(self, title: str) -> Table:

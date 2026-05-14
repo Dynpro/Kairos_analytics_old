@@ -27,6 +27,7 @@ class PHMAutomationController extends Controller
 	        ->join('client_folder_mapping','phm.client_id','=','client_folder_mapping.folder_id')
 	       	->where(['report.is_active' => '1','phm.is_active' => '1','client_folder_mapping.is_active' => '1','phm.entity_id' => env('env_entity_id'),'report.user_id' => auth()->user()->id])
 	        ->distinct()
+	        ->orderBy('report.report_id', 'desc')
 	        ->get();
 
 		return response()->json(['Code' => 200,'Status' => "Success", 'Message' => 'PHM Automation Report List.','Response' =>$ReportData]);
@@ -65,6 +66,24 @@ class PHMAutomationController extends Controller
 					];
 				}
 			}
+
+			// Inject Apollo and Kairos so they appear in the UI dropdown
+			$folderChildArr[] = [
+				'folder_name' => 'Apollo', 
+				'folder_primary_id' => 0, 
+				'folder_id' => 9901, 
+				'phm_folder_id' => 9901, 
+				'parent_folder_id' => 0, 
+				'schema_name' => 'SCH_TEST_COMPANY_2'
+			];
+			$folderChildArr[] = [
+				'folder_name' => 'Kairos', 
+				'folder_primary_id' => 0, 
+				'folder_id' => 9902, 
+				'phm_folder_id' => 9902, 
+				'parent_folder_id' => 0, 
+				'schema_name' => 'SCH_TEST_COMPANY_2'
+			];
 
 			return response()->json(['Code' => 200,'Status' => "Success", 'Message' => 'Client List.','Response' =>$folderChildArr]);
         } catch (\Exception $e) {
